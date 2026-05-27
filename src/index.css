@@ -1,0 +1,141 @@
+/* Clean default resets to let Tailwind CDN manage layout */
+#root {
+  width: 100% !important;
+  max-width: 100% !important;
+  margin: 0 !important;
+  text-align: left !important;
+  display: block !important;
+  min-height: 100vh !important;
+}
+
+/* Custom Premium Scrollbar styling for a smooth, high-end experience */
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Global scrollable elements smooth scrolling */
+.overflow-y-auto, 
+.overflow-x-auto, 
+.overflow-scroll,
+main {
+  scroll-behavior: smooth;
+  -webkit-overflow-scrolling: touch;
+}
+
+/* Webkit Scrollbars (Chrome, Safari, Edge, Opera) */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #cbd5e1; /* slate-300 */
+  border-radius: 9999px;
+  transition: background-color 0.2s ease-in-out;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8; /* slate-400 */
+}
+
+/* Firefox styling */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: #cbd5e1 transparent;
+}
+
+/* Dark mode / dark container scrollbars */
+.bg-slate-900::-webkit-scrollbar-thumb,
+.bg-slate-950::-webkit-scrollbar-thumb,
+.bg-slate-900 *::-webkit-scrollbar-thumb,
+.bg-slate-950 *::-webkit-scrollbar-thumb {
+  background: #475569; /* slate-600 */
+}
+
+.bg-slate-900::-webkit-scrollbar-thumb:hover,
+.bg-slate-950::-webkit-scrollbar-thumb:hover,
+.bg-slate-900 *::-webkit-scrollbar-thumb:hover,
+.bg-slate-950 *::-webkit-scrollbar-thumb:hover {
+  background: #64748b; /* slate-500 */
+}
+
+.bg-slate-900,
+.bg-slate-950 {
+  scrollbar-color: #475569 transparent;
+}
+
+/* Base animations */
+@keyframes pulse-slow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.4; }
+}
+
+.animate-pulse-slow {
+  animation: pulse-slow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+@keyframes slide-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-slide-in {
+  animation: slide-in 0.25s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes slide-in-right {
+  from {
+    opacity: 0;
+    transform: translateX(100%);
+  }
+  to {
+    opacity: 1;
+    transform: translateX(0);
+  }
+}
+
+.animate-slide-in-right {
+  animation: slide-in-right 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+/* Print Invoice styles */
+@media print {
+  body * {
+    visibility: hidden;
+  }
+  #print-area, #print-area * {
+    visibility: visible;
+  }
+  #print-area {
+    position: absolute;
+    left: 0;
+    top: 0;
+    width: 100%;
+    max-width: 100% !important;
+    box-shadow: none !important;
+    border: none !important;
+    background: white !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+  /* Hide close/print action buttons when printing */
+  .no-print {
+    display: none !important;
+  }
+}
+
