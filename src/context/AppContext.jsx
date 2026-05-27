@@ -39,7 +39,7 @@ export const AppProvider = ({ children }) => {
       const saved = localStorage.getItem('salon_appointments');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed) && parsed.length >= mockAppointments.length) return parsed;
       }
     } catch (e) {
       console.error(e);
@@ -52,7 +52,7 @@ export const AppProvider = ({ children }) => {
       const saved = localStorage.getItem('salon_inventory');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed) && parsed.length >= mockInventory.length) return parsed;
       }
     } catch (e) {
       console.error(e);
@@ -65,7 +65,7 @@ export const AppProvider = ({ children }) => {
       const saved = localStorage.getItem('salon_customers');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed) && parsed.length >= mockCustomers.length) return parsed;
       }
     } catch (e) {
       console.error(e);
@@ -78,7 +78,7 @@ export const AppProvider = ({ children }) => {
       const saved = localStorage.getItem('salon_staff');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed) && parsed.length >= mockStaff.length) return parsed;
       }
     } catch (e) {
       console.error(e);
@@ -109,13 +109,59 @@ export const AppProvider = ({ children }) => {
       const saved = localStorage.getItem('salon_waMessages');
       if (saved) {
         const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
+        if (Array.isArray(parsed)) {
+          return parsed.map((m, idx) => ({
+            id: m.id || `msg-local-${idx}-${Date.now()}`,
+            channel: m.channel || 'whatsapp',
+            status: m.status || (m.sender === 'client' ? 'pending' : 'approved'),
+            clientName: m.clientName || 'Arjun Singh',
+            phone: m.phone || '9222222222',
+            service: m.service || mockServices[0],
+            stylist: m.stylist || mockStaff[0],
+            ...m
+          }));
+        }
       }
     } catch (e) {
       console.error(e);
     }
     return [
-      { sender: 'client', text: 'Hello SalonSync! Can I book a Hair Color with Ravi today at 4 PM?', time: '15:45' }
+      { 
+        id: 'msg-seed-1',
+        sender: 'client', 
+        text: 'Can I schedule a Men Haircut with Ravi Kumar today at 3:30 PM? - Arjun Singh', 
+        time: '11:15',
+        channel: 'whatsapp',
+        status: 'approved',
+        clientName: 'Arjun Singh',
+        phone: '9222222222',
+        service: { id: 1, name: "Men's Haircut", price: 350 },
+        stylist: { id: 1, name: 'Ravi Kumar' }
+      },
+      { 
+        id: 'msg-seed-2',
+        sender: 'client', 
+        text: 'I need a Bridal Makeup with Anjali Reddy tomorrow morning at 9 AM. Can you confirm? Name: Kavya Rao', 
+        time: '12:40',
+        channel: 'instagram',
+        status: 'pending',
+        clientName: 'Kavya Rao',
+        phone: '9333333333',
+        service: { id: 7, name: 'Bridal Makeup', price: 4500 },
+        stylist: { id: 3, name: 'Anjali Reddy' }
+      },
+      { 
+        id: 'msg-seed-3',
+        sender: 'client', 
+        text: 'Voice Transcript: Hello, I want to book a Hair Spa with Ravi Kumar today at 5 PM. My name is Sneha Gupta.', 
+        time: '13:05',
+        channel: 'voice',
+        status: 'pending',
+        clientName: 'Sneha Gupta',
+        phone: '9555555555',
+        service: { id: 3, name: 'Hair Spa', price: 1500 },
+        stylist: { id: 1, name: 'Ravi Kumar' }
+      }
     ];
   });
 
@@ -228,11 +274,15 @@ export const AppProvider = ({ children }) => {
 
     // Also trigger toast notification!
     if (type === 'WhatsApp') {
-      addToast(`💬 WhatsApp booking request from ${customerName}`, 'whatsapp', '/integrations');
+      addToast(`Booking request from ${customerName}`, 'whatsapp', '/integrations');
+    } else if (type === 'Instagram') {
+      addToast(`Booking request from ${customerName}`, 'instagram', '/integrations');
+    } else if (type === 'Voice Call') {
+      addToast(`Booking request from ${customerName}`, 'voice', '/integrations');
     } else if (type === 'SMS' && customerName.includes('Inventory')) {
-      addToast(`⚠️ Stock Warning: ${message}`, 'warning', '/inventory');
+      addToast(`${message}`, 'warning', '/inventory');
     } else {
-      addToast(`🔔 Alert: ${message}`, 'info');
+      addToast(`${message}`, 'info');
     }
   };
 
@@ -264,61 +314,133 @@ export const AppProvider = ({ children }) => {
       const mins = Math.random() > 0.5 ? '00' : '30';
       const randomTime = `${hours.toString().padStart(2, '0')}:${mins}`;
 
+      // Pick random channel: whatsapp, instagram, voice
+      const channels = ['whatsapp', 'instagram', 'voice'];
+      const selectedChannel = channels[Math.floor(Math.random() * channels.length)];
+
       // Assemble chat texts
-      const templates = [
-        `Hey SalonSync, I'm ${fullName}. I would like to book a ${randomService.name} with ${randomStaff.name} today at ${randomTime}.`,
-        `Hello! Can you book a ${randomService.name} for me today at ${randomTime}? I prefer stylist ${randomStaff.name}. Name: ${fullName}, Ph: ${cleanPhone}`,
-        `Hi, is ${randomStaff.name} free at ${randomTime}? I want to schedule a ${randomService.name}. Customer: ${fullName}.`,
-        `Book appointment: ${randomService.name} with stylist ${randomStaff.name} for today ${randomTime}. Client phone: ${cleanPhone}. Thanks, ${fullName}.`
-      ];
-      const selectedText = templates[Math.floor(Math.random() * templates.length)];
-      
+      let selectedText = '';
+      let mockPayload = {};
+      let logType = 'WhatsApp';
+
+      if (selectedChannel === 'whatsapp') {
+        const templates = [
+          `Hey SalonSync, I'm ${fullName}. I would like to book a ${randomService.name} with ${randomStaff.name} today at ${randomTime}.`,
+          `Hello! Can you book a ${randomService.name} for me today at ${randomTime}? I prefer stylist ${randomStaff.name}. Name: ${fullName}, Ph: ${cleanPhone}`,
+          `Hi, is ${randomStaff.name} free at ${randomTime}? I want to schedule a ${randomService.name}. Customer: ${fullName}.`
+        ];
+        selectedText = templates[Math.floor(Math.random() * templates.length)];
+        logType = 'WhatsApp';
+        
+        mockPayload = {
+          object: 'whatsapp_business_account',
+          entry: [{
+            id: 'WHATSAPP_BUSINESS_ACCOUNT_ID',
+            changes: [{
+              value: {
+                messaging_product: 'whatsapp',
+                metadata: { display_phone_number: '16505553333', phone_number_id: '99999999' },
+                contacts: [{ profile: { name: fullName }, wa_id: cleanPhone }],
+                messages: [{
+                  from: cleanPhone,
+                  id: 'wamid.' + Math.random().toString(36).substring(2, 15),
+                  timestamp: Math.floor(Date.now() / 1000),
+                  text: { body: selectedText },
+                  type: 'text'
+                }]
+              },
+              field: 'messages'
+            }]
+          }]
+        };
+      } else if (selectedChannel === 'instagram') {
+        selectedText = `[Instagram DM] Hello! Is there any slot available for ${randomService.name} with ${randomStaff.name} today at ${randomTime}? My name is ${fullName} (Ph: ${cleanPhone})`;
+        logType = 'Instagram';
+        
+        mockPayload = {
+          object: 'instagram_business_account',
+          entry: [{
+            id: 'INSTAGRAM_BUSINESS_ACCOUNT_ID',
+            changes: [{
+              value: {
+                messaging_product: 'instagram',
+                metadata: { page_id: '1234567890' },
+                sender: { id: cleanPhone },
+                message: {
+                  id: 'igmid.' + Math.random().toString(36).substring(2, 15),
+                  timestamp: Math.floor(Date.now() / 1000),
+                  text: selectedText
+                }
+              },
+              field: 'messages'
+            }]
+          }]
+        };
+      } else {
+        selectedText = `[Voice Call IVR Transcription] "Hello, I want to book a ${randomService.name} with ${randomStaff.name} today at ${randomTime}. My name is ${fullName} and my phone is ${cleanPhone}."`;
+        logType = 'Voice Call';
+        
+        mockPayload = {
+          object: 'voice_ivr_session',
+          entry: [{
+            session_id: 'call_' + Math.random().toString(36).substring(2, 10),
+            direction: 'inbound',
+            from: cleanPhone,
+            transcription: selectedText,
+            timestamp: Math.floor(Date.now() / 1000),
+            entities: {
+              customer_name: fullName,
+              service_name: randomService.name,
+              stylist_name: randomStaff.name,
+              requested_time: randomTime
+            }
+          }]
+        };
+      }
+
       const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
       
+      const newMsg = { 
+        id: 'msg-' + Date.now(),
+        sender: 'client', 
+        text: selectedText, 
+        time: timestamp,
+        channel: selectedChannel,
+        status: 'pending',
+        clientName: fullName,
+        phone: cleanPhone,
+        service: randomService,
+        stylist: randomStaff,
+        date: '2026-05-26',
+        timeSlot: randomTime,
+        branchId: randomStaff.branchId
+      };
+
       // Push message to chat
-      setWaMessages(prev => [...prev, { sender: 'client', text: selectedText, time: timestamp }]);
+      setWaMessages(prev => [...prev, newMsg]);
 
       // Push raw payload
-      const mockPayload = {
-        object: 'whatsapp_business_account',
-        entry: [{
-          id: 'WHATSAPP_BUSINESS_ACCOUNT_ID',
-          changes: [{
-            value: {
-              messaging_product: 'whatsapp',
-              metadata: { display_phone_number: '16505553333', phone_number_id: '99999999' },
-              contacts: [{ profile: { name: fullName }, wa_id: cleanPhone }],
-              messages: [{
-                from: cleanPhone,
-                id: 'wamid.' + Math.random().toString(36).substring(2, 15),
-                timestamp: Math.floor(Date.now() / 1000),
-                text: { body: selectedText },
-                type: 'text'
-              }]
-            },
-            field: 'messages'
-          }]
-        }]
-      };
       setWebhookLogs(prev => [JSON.stringify(mockPayload, null, 2), ...prev].slice(0, 5));
 
       // Parse NLP parameters
       setParsedData({
+        messageId: newMsg.id,
         clientName: fullName,
         phone: cleanPhone,
         stylist: randomStaff,
         service: randomService,
         time: randomTime,
         date: '2026-05-26',
-        branchId: randomStaff.branchId
+        branchId: randomStaff.branchId,
+        channel: selectedChannel
       });
 
       // Add webhook notifications
       addNotification(
         fullName,
         cleanPhone,
-        `[Real-time API Webhook] Received WhatsApp booking request from ${fullName} for ${randomService.name} at ${randomTime}.`,
-        'WhatsApp'
+        `[Real-time API Webhook] Received ${logType} booking request from ${fullName} for ${randomService.name} at ${randomTime}.`,
+        logType
       );
 
     } catch (e) {

@@ -97,6 +97,19 @@ const Portal = () => {
 
     if (!selectedService || !selectedStaff) return;
 
+    // Check if slot is already booked for this stylist
+    const isSlotBooked = appointments.some(a =>
+      a.staffId === selectedStaff.id &&
+      a.date === '2026-05-26' &&
+      a.time === time &&
+      a.status !== 'cancelled'
+    );
+
+    if (isSlotBooked) {
+      alert(`We are sorry, but ${selectedStaff.name} is already booked at ${time} on 2026-05-26. Please select another time or stylist.`);
+      return;
+    }
+
     // Award loyalty points & register profile internally if new customer
     const existingCust = customers.find(c => c.phone === phone.trim());
 
@@ -191,6 +204,27 @@ const Portal = () => {
 
         const finalProposal = { ...chatProposal, phone: cleanPhone };
         setChatProposal(finalProposal);
+
+        // Check if slot is already booked
+        const isSlotBooked = appointments.some(a =>
+          a.staffId === finalProposal.stylist.id &&
+          a.date === '2026-05-26' &&
+          a.time === finalProposal.time &&
+          a.status !== 'cancelled'
+        );
+
+        if (isSlotBooked) {
+          setChatMessages(prev => [
+            ...prev,
+            {
+              sender: 'bot',
+              text: `⚠️ I'm sorry, but ${finalProposal.stylist.name} is already booked at ${finalProposal.time}. Please try a different slot or select another stylist.`
+            }
+          ]);
+          setChatStep('chat');
+          setChatProposal(null);
+          return;
+        }
 
         const existingCust = customers.find(c => c.phone === cleanPhone);
 

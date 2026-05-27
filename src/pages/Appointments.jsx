@@ -75,6 +75,17 @@ const Appointments = () => {
 
   const todayHoliday = holidays.find(h => h.date === SESSION_DATE);
 
+  const hasConflict = (apptId, staffId, date, time) => {
+    if (!staffId || !date || !time) return false;
+    return appointments.some(a => 
+      a.id !== apptId &&
+      a.staffId === parseInt(staffId, 10) &&
+      a.date === date &&
+      a.time === time &&
+      a.status !== 'cancelled'
+    );
+  };
+
   // Form States
   const [formData, setFormData] = useState({
     customerName: '',
@@ -85,6 +96,9 @@ const Appointments = () => {
     time: '09:00',
     source: 'Walk-in'
   });
+
+  const [showCustomerDropdown, setShowCustomerDropdown] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState(null);
 
   // Filter staff by selected branch
   const activeBranchStaff = staff.filter(s => s.branchId === selectedBranchId);
@@ -116,26 +130,14 @@ const Appointments = () => {
       return;
     }
 
-    // 1. Customer Check (match by phone)
-    let customerId;
-    let finalCustomerName = customerName.trim();
-    const cleanPhone = phoneNumber.trim();
-
-    const existingCust = customers.find(c => c.phone === cleanPhone);
-    if (existingCust) {
-      customerId = existingCust.id;
-      finalCustomerName = existingCust.name; // Keep standard name
-    } else {
-      // Add customer if doesn't exist
-      const newCust = addCustomer({
-        name: finalCustomerName,
-        phone: cleanPhone,
-        preferredBranch: selectedBranchId,
-        loyaltyPoints: 0,
-        totalVisits: 0
-      });
-      customerId = newCust.id;
+    if (!selectedCustomer) {
+      alert('Please select an existing customer from the dropdown list. Booking is restricted to existing customers in the system.');
+      return;
     }
+
+    // 1. Customer Check (match selected customer)
+    const customerId = selectedCustomer.id;
+    const finalCustomerName = selectedCustomer.name;
 
     // 2. Lookup Service & Staff
     const selectedService = services.find(s => s.id === parseInt(serviceId, 10));
@@ -144,6 +146,23 @@ const Appointments = () => {
     if (!selectedService || !selectedStaff) {
       alert('Invalid service or stylist selection');
       return;
+    }
+
+    // Check if slot is already booked
+    const isSlotBooked = appointments.some(a =>
+      a.staffId === selectedStaff.id &&
+      a.date === date &&
+      a.time === time &&
+      a.status !== 'cancelled'
+    );
+
+    if (isSlotBooked) {
+      const confirmBooking = window.confirm(
+        `Stylist ${selectedStaff.name} is already booked at this time (${time}) on this date (${date}). Do you still want to confirm this as a double-booking?`
+      );
+      if (!confirmBooking) {
+        return;
+      }
     }
 
     // 3. Save Appointment
@@ -172,6 +191,7 @@ const Appointments = () => {
       time: '09:00',
       source: 'Walk-in'
     });
+    setSelectedCustomer(null);
     setIsModalOpen(false);
   };
 
@@ -288,7 +308,19 @@ const Appointments = () => {
           <p className="text-sm text-slate-500">Manage bookings, check-in customers, and monitor branch capacity.</p>
         </div>
         <button
-          onClick={() => setIsModalOpen(true)}
+          onClick={() => {
+            setFormData({
+              customerName: '',
+              phoneNumber: '',
+              serviceId: '',
+              staffId: '',
+              date: SESSION_DATE,
+              time: '09:00',
+              source: 'Walk-in'
+            });
+            setSelectedCustomer(null);
+            setIsModalOpen(true);
+          }}
           className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-5 py-3 rounded-xl transition-all duration-200 shadow-md shadow-purple-900/10 flex items-center space-x-2 self-start md:self-auto"
         >
           <Plus className="h-5 w-5" />
@@ -393,7 +425,16 @@ const Appointments = () => {
                   className="bg-white rounded-2xl border border-slate-100 p-6 flex flex-col justify-between hover:shadow-lg hover:border-slate-200 transition-all duration-200 space-y-5 shadow-sm"
                 >
                   <div className="flex justify-between items-start gap-2">
-                    <h4 className="font-bold text-slate-850 text-base">{appt.customerName}</h4>
+                    <div className="space-y-1 text-left">
+                      <h4 className="font-bold text-slate-850 text-base">{appt.customerName}</h4>
+                      {hasConflict(appt.id, appt.staffId, appt.date, appt.time) && (
+                        <div className="pt-0.5">
+                          <span className="inline-flex items-center gap-1 bg-rose-50 text-rose-700 border border-rose-150 px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider animate-pulse">
+                            <AlertCircle className="h-3 w-3 text-rose-500 animate-pulse" /> Overlap Conflict
+                          </span>
+                        </div>
+                      )}
+                    </div>
                     <div className="shrink-0">{getSourceBadge(appt.source)}</div>
                   </div>
 
@@ -576,8 +617,10 @@ const Appointments = () => {
                       const duration = service ? service.duration : 30;
                       const topOffset = parseTimeToOffset(appt.time);
                       const height = durationToHeight(duration);
+                      const isConflicted = hasConflict(appt.id, appt.staffId, appt.date, appt.time);
 
                       const statusColor = 
+                        isConflicted ? 'border-rose-500 bg-rose-50/80 text-rose-900 ring-2 ring-rose-500/20' :
                         appt.status === 'completed' ? 'border-emerald-500 bg-emerald-50 text-emerald-800' :
                         appt.status === 'confirmed' ? 'border-indigo-500 bg-indigo-50 text-indigo-850' :
                         appt.status === 'inprogress' ? 'border-purple-500 bg-purple-50 text-purple-850' :
@@ -592,7 +635,10 @@ const Appointments = () => {
                         >
                           <div className="space-y-0.5">
                             <div className="flex justify-between items-start gap-1">
-                              <p className="font-extrabold text-[10px] truncate leading-none">{appt.customerName}</p>
+                              <p className="font-extrabold text-[10px] truncate leading-none flex items-center gap-1">
+                                {isConflicted && <AlertCircle className="h-3 w-3 text-rose-600 animate-pulse shrink-0" />}
+                                <span>{appt.customerName}</span>
+                              </p>
                               <span className="text-[7px] font-black uppercase tracking-wider shrink-0">{appt.source}</span>
                             </div>
                             <p className="font-semibold text-[8px] uppercase tracking-wide truncate mt-0.5">{appt.serviceName}</p>
@@ -659,29 +705,133 @@ const Appointments = () => {
 
             <form onSubmit={handleBookAppointment} className="space-y-4">
               {/* Customer Name */}
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 relative text-left">
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Customer Name *</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. John Doe"
-                  value={formData.customerName}
-                  onChange={(e) => setFormData(p => ({ ...p, customerName: e.target.value }))}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-purple-100 focus:border-purple-300"
-                />
+                <div className="relative flex items-center">
+                  <input
+                    type="text"
+                    required
+                    placeholder="Search existing customer by name or phone..."
+                    value={formData.customerName}
+                    onChange={(e) => {
+                      setFormData(p => ({ ...p, customerName: e.target.value }));
+                      setSelectedCustomer(null); // Clear selected customer if they edit the name
+                      setShowCustomerDropdown(true);
+                    }}
+                    onFocus={() => setShowCustomerDropdown(true)}
+                    onBlur={() => {
+                      setTimeout(() => {
+                        setShowCustomerDropdown(false);
+                      }, 250);
+                    }}
+                    className={`w-full bg-slate-50 border ${
+                      selectedCustomer ? 'border-emerald-500 bg-emerald-50/10' : 'border-slate-200'
+                    } rounded-xl pl-3.5 pr-20 py-2.5 text-xs font-semibold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-purple-100 focus:border-purple-300`}
+                  />
+                  {selectedCustomer ? (
+                    <div className="absolute right-3 flex items-center space-x-1.5">
+                      <span className="text-[9px] font-extrabold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-150">
+                        Selected
+                      </span>
+                      <CheckCircle className="h-4 w-4 text-emerald-500 shrink-0" />
+                    </div>
+                  ) : (
+                    <div className="absolute right-3 flex items-center">
+                      <Search className="h-4 w-4 text-slate-400 shrink-0" />
+                    </div>
+                  )}
+                </div>
+
+                {/* Customer Dropdown Results */}
+                {showCustomerDropdown && (
+                  <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-150 rounded-xl shadow-xl z-50 max-h-56 overflow-y-auto">
+                    {(() => {
+                      const val = formData.customerName.toLowerCase().trim();
+                      const matchedCustomers = val 
+                        ? customers.filter(c => c.name.toLowerCase().includes(val) || c.phone.includes(val))
+                        : customers.slice(0, 15); // Show first 15 customers when input is empty
+
+                      if (matchedCustomers.length === 0) {
+                        return (
+                          <div className="p-3 text-center text-xs text-rose-500 font-bold">
+                            No matching customers found.
+                          </div>
+                        );
+                      }
+
+                      return (
+                        <div>
+                          {!val && (
+                            <div className="bg-slate-50 px-3 py-1.5 text-[9px] font-extrabold text-slate-400 uppercase tracking-wider border-b border-slate-100 sticky top-0 text-left">
+                              Existing Customers ({customers.length} total)
+                            </div>
+                          )}
+                          {matchedCustomers.map(cust => (
+                            <div
+                              key={cust.id}
+                              onMouseDown={() => {
+                                setFormData(p => ({ 
+                                  ...p, 
+                                  customerName: cust.name,
+                                  phoneNumber: cust.phone
+                                }));
+                                setSelectedCustomer(cust);
+                                setShowCustomerDropdown(false);
+                              }}
+                              className="flex items-center justify-between p-3 border-b border-slate-50 last:border-0 hover:bg-slate-50 cursor-pointer transition-colors"
+                            >
+                              <div className="flex items-center space-x-2.5">
+                                <div className="h-7 w-7 rounded-full bg-purple-100 text-purple-700 font-extrabold flex items-center justify-center text-[10px]">
+                                  {cust.name[0]}
+                                </div>
+                                <div className="text-left">
+                                  <p className="text-xs font-bold text-slate-800">{cust.name}</p>
+                                  <p className="text-[10px] text-slate-450 font-semibold">{cust.phone}</p>
+                                </div>
+                              </div>
+                              <span className="text-[9px] font-extrabold bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full border border-purple-150">
+                                {cust.loyaltyPoints} pts
+                              </span>
+                            </div>
+                          ))}
+                        </div>
+                      );
+                    })()}
+                  </div>
+                )}
+                {!selectedCustomer && formData.customerName.trim() && (
+                  <p className="text-[10px] font-bold text-rose-500 mt-1 text-left flex items-center gap-1 animate-pulse">
+                    <AlertCircle className="h-3 w-3 text-rose-500 shrink-0" />
+                    <span>Please select this customer from the dropdown list.</span>
+                  </p>
+                )}
               </div>
 
               {/* Phone Number */}
-              <div className="space-y-1.5">
+              <div className="space-y-1.5 text-left">
                 <label className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Phone Number *</label>
-                <input
-                  type="tel"
-                  required
-                  placeholder="e.g. 9876543210"
-                  value={formData.phoneNumber}
-                  onChange={(e) => setFormData(p => ({ ...p, phoneNumber: e.target.value }))}
-                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-purple-100 focus:border-purple-300"
-                />
+                <div className="relative flex items-center">
+                  <input
+                    type="tel"
+                    required
+                    readOnly={!!selectedCustomer}
+                    placeholder="e.g. 9876543210"
+                    value={formData.phoneNumber}
+                    onChange={(e) => {
+                      if (!selectedCustomer) {
+                        setFormData(p => ({ ...p, phoneNumber: e.target.value }));
+                      }
+                    }}
+                    className={`w-full ${
+                      selectedCustomer ? 'bg-slate-100/70 border-slate-200 text-slate-450 cursor-not-allowed select-none' : 'bg-slate-50 border-slate-200 text-slate-700 focus:bg-white focus:ring-2 focus:ring-purple-100 focus:border-purple-300'
+                    } border rounded-xl px-3.5 py-2.5 text-xs font-semibold outline-none`}
+                  />
+                  {selectedCustomer && (
+                    <span className="absolute right-3 text-[9px] font-extrabold text-slate-400 uppercase bg-slate-200/50 px-1.5 py-0.5 rounded border border-slate-300/30">
+                      Linked
+                    </span>
+                  )}
+                </div>
               </div>
 
               {/* Service Selection */}

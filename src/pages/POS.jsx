@@ -93,10 +93,10 @@ const POS = () => {
 
   // Determine loyalty tier
   const getLoyaltyTier = (points) => {
-    if (points >= 1000) return { label: 'Platinum', badge: 'bg-indigo-100 text-indigo-800 border-indigo-200 border', emoji: '💎' };
-    if (points >= 500) return { label: 'Gold', badge: 'bg-amber-100 text-amber-800 border-amber-200 border', emoji: '🏆' };
-    if (points >= 200) return { label: 'Silver', badge: 'bg-slate-100 text-slate-800 border-slate-200 border', emoji: '🥈' };
-    return { label: 'Bronze', badge: 'bg-orange-100 text-orange-800 border-orange-250 border', emoji: '🥉' };
+    if (points >= 1000) return { label: 'Platinum', badge: 'bg-indigo-50 text-indigo-850 border-indigo-250 border font-extrabold' };
+    if (points >= 500) return { label: 'Gold', badge: 'bg-amber-50 text-amber-850 border-amber-250 border font-extrabold' };
+    if (points >= 200) return { label: 'Silver', badge: 'bg-slate-50 text-slate-850 border-slate-250 border font-extrabold' };
+    return { label: 'Bronze', badge: 'bg-orange-50 text-orange-850 border-orange-250 border font-extrabold' };
   };
 
   // Filter customer list for type-ahead search
@@ -288,7 +288,6 @@ const POS = () => {
       customerPhone,
       customerPoints: activeCustomer ? activeCustomer.loyaltyPoints : 0,
       customerTier: activeCustomer ? getLoyaltyTier(activeCustomer.loyaltyPoints).label : 'None',
-      customerTierEmoji: activeCustomer ? getLoyaltyTier(activeCustomer.loyaltyPoints).emoji : '',
       services: cart.map(item => ({
         name: item.name,
         price: item.price,
@@ -326,21 +325,22 @@ const POS = () => {
   // Share receipt summary
   const handleShareReceipt = () => {
     if (!invoiceDetails) return;
-    const summaryText = `✂ SalonSync TAX INVOICE
+    const summaryText = `SALONSYNC - TAX INVOICE
 Invoice: ${invoiceDetails.invoiceNo}
 Date: ${invoiceDetails.date}
 Branch: ${invoiceDetails.branchName}
 Customer: ${invoiceDetails.customerName}
-----------------------------
-${invoiceDetails.services.map(s => `${s.name} x${s.quantity} @ ₹${s.price}`).join('\n')}
-----------------------------
+----------------------------------------
+${invoiceDetails.services.map(s => `${s.name.padEnd(24)} x${s.quantity}  ₹${s.price}`).join('\n')}
+----------------------------------------
 Subtotal: ₹${invoiceDetails.subtotal}
 Discount: -₹${invoiceDetails.discountAmount + invoiceDetails.pointsRedeemedDiscount}
 GST (18%): ₹${invoiceDetails.cgst + invoiceDetails.sgst}
 TOTAL PAID: ₹${invoiceDetails.total}
 Payment Method: ${invoiceDetails.paymentMethod}
 Points Earned: +${invoiceDetails.pointsEarned} pts
-Thank you! Visit again at SalonSync 🌸`;
+----------------------------------------
+Thank you! Visit again at SalonSync.`;
 
     navigator.clipboard.writeText(summaryText);
     triggerToast('Copied!');
@@ -507,14 +507,14 @@ Thank you! Visit again at SalonSync 🌸`;
                       
                       <div className="flex flex-wrap gap-2 pt-1">
                         <span className={`text-[9px] font-extrabold px-2 py-0.5 rounded-full ${getLoyaltyTier(activeCustomer.loyaltyPoints).badge}`}>
-                          Loyalty: {getLoyaltyTier(activeCustomer.loyaltyPoints).label} {getLoyaltyTier(activeCustomer.loyaltyPoints).emoji}
+                          {getLoyaltyTier(activeCustomer.loyaltyPoints).label} Tier
                         </span>
                         <span className="text-[9px] font-extrabold bg-purple-50 text-purple-700 border border-purple-150 px-2 py-0.5 rounded-full">
                           Balance: {activeCustomer.loyaltyPoints} pts
                         </span>
                         {customerPlan && (
-                          <span className="text-[9px] font-extrabold bg-purple-600 text-white border border-purple-600 px-2 py-0.5 rounded-full shadow-sm">
-                            ★ Member: {customerPlan.name}
+                          <span className="text-[9px] font-extrabold bg-purple-600 text-white border border-purple-600 px-2.5 py-0.5 rounded-full shadow-sm">
+                            VIP: {customerPlan.name}
                           </span>
                         )}
                       </div>
@@ -825,10 +825,10 @@ Thank you! Visit again at SalonSync 🌸`;
                   <div className="grid grid-cols-3 gap-2">
                     {['Cash', 'Card', 'UPI'].map(method => {
                       const isSelected = paymentMethod === method;
-                      const getEmoji = (m) => {
-                        if (m === 'Cash') return '💵';
-                        if (m === 'Card') return '💳';
-                        return '📱';
+                      const getIcon = (m) => {
+                        if (m === 'Cash') return <DollarSign className={`h-4.5 w-4.5 ${isSelected ? 'text-violet-650' : 'text-slate-400'}`} />;
+                        if (m === 'Card') return <CreditCard className={`h-4.5 w-4.5 ${isSelected ? 'text-violet-650' : 'text-slate-400'}`} />;
+                        return <QrCode className={`h-4.5 w-4.5 ${isSelected ? 'text-violet-650' : 'text-slate-400'}`} />;
                       };
 
                       return (
@@ -841,7 +841,7 @@ Thank you! Visit again at SalonSync 🌸`;
                               : 'border-slate-200 bg-white text-slate-500 hover:bg-slate-50'
                           }`}
                         >
-                          <span className="text-base leading-none">{getEmoji(method)}</span>
+                          <span className="flex items-center justify-center h-5">{getIcon(method)}</span>
                           <span>{method}</span>
                           {isSelected && (
                             <span className="absolute top-1 right-1 h-3.5 w-3.5 bg-violet-600 text-white rounded-full flex items-center justify-center text-[7px]">
@@ -891,63 +891,64 @@ Thank you! Visit again at SalonSync 🌸`;
             {/* Print-ready Template Container */}
             <div 
               id="print-area" 
-              className="bg-white p-6 md:p-8 rounded-2xl border border-slate-300 shadow-sm max-w-xl mx-auto text-slate-850 font-mono text-sm leading-relaxed"
+              className="bg-stone-50/40 p-6 md:p-8 rounded-2xl border-2 border-stone-200 shadow-sm max-w-xl mx-auto text-slate-850 font-mono text-[11px] leading-relaxed tracking-tight"
               style={{ minWidth: '400px' }}
             >
               {/* Header */}
-              <div className="border-b border-dashed border-slate-350 pb-4 text-center">
-                <div className="flex items-center justify-between font-bold text-base uppercase">
-                  <span>✂ SalonSync</span>
-                  <span>TAX INVOICE</span>
-                </div>
-                <div className="text-left text-xs text-slate-500 mt-2 space-y-0.5">
-                  <p>{invoiceDetails.branchName}</p>
+              <div className="border-b border-dashed border-stone-300 pb-4 text-center">
+                <h2 className="text-sm font-black tracking-widest text-slate-900 uppercase">S A L O N S Y N C</h2>
+                <p className="text-[8px] text-slate-500 font-bold uppercase tracking-wider mt-0.5">Premium Grooming & Beauty Lounge</p>
+                <div className="text-left text-[9px] text-slate-500 mt-3 space-y-0.5">
+                  <p className="font-bold text-slate-700">{invoiceDetails.branchName.toUpperCase()} BRANCH</p>
                   <p>Banjara Hills, Road No. 12, Hyderabad</p>
-                  <div className="flex justify-between mt-2 font-semibold">
-                    <span>GSTIN: 36XXXXX1234X1ZX</span>
-                    <span>Date: {invoiceDetails.date}</span>
+                  <div className="flex justify-between mt-2.5 border-t border-stone-150 pt-2 font-semibold">
+                    <span>GSTIN: 36AAAAA1234A1ZA</span>
+                    <span>DATE: {invoiceDetails.date}</span>
                   </div>
                   <div className="flex justify-between mt-0.5 font-semibold">
-                    <span>Invoice: {invoiceDetails.invoiceNo}</span>
-                    <span>Time: {invoiceDetails.time}</span>
+                    <span>INVOICE: {invoiceDetails.invoiceNo}</span>
+                    <span>TIME: {invoiceDetails.time}</span>
                   </div>
                 </div>
               </div>
 
-              {/* Bill To */}
-              <div className="border-b border-dashed border-slate-350 py-4 text-xs">
-                <div className="flex justify-between font-bold uppercase">
-                  <span>BILL TO:</span>
+              {/* Bill To & Details */}
+              <div className="border-b border-dashed border-stone-300 py-3 text-[9px]">
+                <div className="flex justify-between font-bold text-slate-750">
+                  <span>CLIENT DETAILS:</span>
                   {invoiceDetails.customerTier !== 'None' && (
-                    <span>Loyalty: {invoiceDetails.customerTier} {invoiceDetails.customerTierEmoji}</span>
+                    <span className="text-violet-750 font-black">{invoiceDetails.customerTier.toUpperCase()} MEMBER</span>
                   )}
                 </div>
-                <div className="mt-1.5 space-y-0.5 font-semibold">
-                  <p>{invoiceDetails.customerName}</p>
-                  <p>Ph: {invoiceDetails.customerPhone}</p>
+                <div className="mt-1.5 space-y-0.5 font-semibold text-slate-800">
+                  <p className="font-bold uppercase">{invoiceDetails.customerName}</p>
+                  <p>CONTACT: +91 {invoiceDetails.customerPhone}</p>
+                  {selectedStylist && (
+                    <p>STYLIST: {selectedStylist.name.toUpperCase()} ({selectedStylist.role.toUpperCase()})</p>
+                  )}
                 </div>
               </div>
 
               {/* Items Table */}
-              <div className="py-4">
-                <table className="w-full text-xs font-mono font-semibold">
+              <div className="py-3">
+                <table className="w-full text-[9px] font-mono font-semibold">
                   <thead>
-                    <tr className="border-b border-dashed border-slate-350 text-slate-500 uppercase">
-                      <th className="text-left pb-2 w-10">S.No</th>
-                      <th className="text-left pb-2">Service</th>
-                      <th className="text-right pb-2 w-16">Rate</th>
-                      <th className="text-right pb-2 w-12">Qty</th>
-                      <th className="text-right pb-2 w-20">Amount</th>
+                    <tr className="border-b border-dashed border-stone-300 text-slate-500 uppercase">
+                      <th className="text-left pb-2 w-8">#</th>
+                      <th className="text-left pb-2">SERVICE DESCRIPTION</th>
+                      <th className="text-right pb-2 w-16">RATE</th>
+                      <th className="text-right pb-2 w-10">QTY</th>
+                      <th className="text-right pb-2 w-18">AMOUNT</th>
                     </tr>
                   </thead>
                   <tbody>
                     {invoiceDetails.services.map((s, idx) => (
-                      <tr key={idx} className="border-b border-slate-100 last:border-0">
-                        <td className="py-2.5">{idx + 1}</td>
-                        <td className="py-2.5 truncate max-w-[180px]">{s.name}</td>
+                      <tr key={idx} className="border-b border-stone-100 last:border-0 text-slate-800">
+                        <td className="py-2.5 font-bold">{String(idx + 1).padStart(2, '0')}</td>
+                        <td className="py-2.5 truncate max-w-[190px] uppercase">{s.name}</td>
                         <td className="py-2.5 text-right">₹{s.price}</td>
                         <td className="py-2.5 text-right">{s.quantity}</td>
-                        <td className="py-2.5 text-right">₹{s.total}</td>
+                        <td className="py-2.5 text-right font-bold">₹{s.total}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -955,56 +956,156 @@ Thank you! Visit again at SalonSync 🌸`;
               </div>
 
               {/* Calculations Block */}
-              <div className="border-t border-dashed border-slate-350 pt-4 space-y-1.5 text-xs text-right font-mono font-semibold">
+              <div className="border-t border-dashed border-stone-300 pt-3 space-y-1.5 text-[9px] text-right font-mono font-semibold">
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Subtotal:</span>
-                  <span>₹{invoiceDetails.subtotal}</span>
+                  <span className="text-slate-500">SUBTOTAL:</span>
+                  <span className="text-slate-850">₹{invoiceDetails.subtotal}</span>
                 </div>
                 {invoiceDetails.discountAmount > 0 && (
                   <div className="flex justify-between text-rose-600">
-                    <span className="text-slate-500">Discount ({invoiceDetails.discountPercent}%):</span>
+                    <span className="text-slate-500">DISCOUNT ({invoiceDetails.discountPercent}%):</span>
                     <span>-₹{invoiceDetails.discountAmount}</span>
                   </div>
                 )}
                 {invoiceDetails.membershipDiscountAmount > 0 && (
-                  <div className="flex justify-between text-violet-700">
-                    <span className="text-slate-500">Member Discount ({invoiceDetails.membershipName}):</span>
+                  <div className="flex justify-between text-violet-750">
+                    <span className="text-slate-500">MEMBER DISCOUNT ({invoiceDetails.membershipName.toUpperCase()}):</span>
                     <span>-₹{invoiceDetails.membershipDiscountAmount}</span>
                   </div>
                 )}
                 <div className="flex justify-between">
-                  <span className="text-slate-500">Taxable Amount:</span>
-                  <span>₹{invoiceDetails.taxableAmount}</span>
+                  <span className="text-slate-500">TAXABLE VALUE:</span>
+                  <span className="text-slate-850">₹{invoiceDetails.taxableAmount}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">CGST @9%:</span>
-                  <span>₹{invoiceDetails.cgst}</span>
+                  <span className="text-slate-850">₹{invoiceDetails.cgst}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">SGST @9%:</span>
-                  <span>₹{invoiceDetails.sgst}</span>
+                  <span className="text-slate-850">₹{invoiceDetails.sgst}</span>
                 </div>
                 {invoiceDetails.pointsRedeemedDiscount > 0 && (
-                  <div className="flex justify-between text-amber-600 border-t border-slate-100 pt-1">
-                    <span className="text-slate-500">Redeem ({invoiceDetails.pointsRedeemed} pts):</span>
+                  <div className="flex justify-between text-amber-600 border-t border-stone-150 pt-1">
+                    <span className="text-slate-500">POINTS REDEEMED ({invoiceDetails.pointsRedeemed} PTS):</span>
                     <span>-₹{invoiceDetails.pointsRedeemedDiscount}</span>
                   </div>
                 )}
-                <div className="flex justify-between text-base font-extrabold border-t border-dashed border-slate-350 pt-2.5 mt-2 text-slate-900">
-                  <span>TOTAL:</span>
+                <div className="flex justify-between text-xs font-black border-t border-dashed border-stone-300 pt-2.5 mt-1.5 text-slate-900">
+                  <span>TOTAL PAID:</span>
                   <span>₹{invoiceDetails.total}</span>
                 </div>
               </div>
 
-              {/* Footer */}
-              <div className="border-t border-dashed border-slate-350 mt-6 pt-4 text-center text-xs space-y-2 font-mono font-semibold">
-                <div className="flex justify-between text-slate-500">
-                  <span>Points Earned: +{invoiceDetails.pointsEarned} pts</span>
-                  <span>Payment: {invoiceDetails.paymentMethod}</span>
+              {/* Loyalty summary */}
+              <div className="border-t border-dashed border-stone-300 mt-4 pt-3 text-[9px] space-y-1 font-mono font-semibold text-left">
+                <div className="flex justify-between text-slate-600">
+                  <span>LOYALTY POINTS EARNED:</span>
+                  <span className="text-emerald-700 font-bold">+{invoiceDetails.pointsEarned} PTS</span>
                 </div>
-                <p className="pt-2 text-slate-650">
-                  Thank you! Visit again at SalonSync 🌸
-                </p>
+                <div className="flex justify-between text-slate-650">
+                  <span>PAYMENT TRANSACTION MODE:</span>
+                  <span className="font-bold">{invoiceDetails.paymentMethod.toUpperCase()}</span>
+                </div>
+              </div>
+
+              {/* Verification & QR Code Simulator */}
+              <div className="flex justify-between items-center pt-4 mt-4 border-t border-dashed border-stone-300">
+                <div className="text-left space-y-1 pr-4">
+                  <h4 className="text-[8px] font-black text-slate-800 uppercase tracking-wide">DIGITAL RECEIPT VERIFIED</h4>
+                  <p className="text-[7px] text-slate-500 leading-normal max-w-[240px] font-medium">
+                    Scan QR to view service logs, claim digital cashback, or view active membership benefits.
+                  </p>
+                </div>
+                <div className="bg-white p-1 border border-stone-250 rounded-lg shrink-0 shadow-sm">
+                  <svg className="w-12 h-12 text-slate-850" viewBox="0 0 29 29" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M0 0h7v7H0zm1 1v5h5V1zm1 1h3v3H2zm21-2h7v7h-7zm1 1v5h5V1zm1 1h3v3h-3zM0 22h7v7H0zm1 1v5h5v-5zm1 1h3v3H2z" fill="currentColor"/>
+                    <path d="M8 2h1v1H8zm2 0h1v1h-1zm2 0h1v1h-1zm2 0h1v1h-1zm2 0h1v1h-1zm2 0h1v1h-1zm2 0h1v1h-1zm-14 2h1v1H8zm6 0h1v1h-1zm1 1h1v1h-1zm-2 1h1v1h-1zm5 0h1v1h-1zm2 0h1v1h-1zm2 0h1v1h-1zm-8 2h1v1H9zm4 0h1v1h-1zm5 0h1v1h-1zm2 0h1v1h-1zm2 0h1v1h-1zm-13 2h1v1H8zm2 0h1v1h-1zm2 0h1v1h-1zm4 0h1v1h-1zm4 0h1v1h-1zm-12 2h1v1H8zm4 0h1v1h-1zm2 0h1v1h-1zm4 0h1v1h-1zm6 0h1v1h-1zm-12 2h1v1H8zm2 0h1v1h-1zm6 0h1v1h-1zm2 0h1v1h-1zm4 0h1v1h-1zm-14 2h1v1H8zm2 0h1v1h-1zm2 0h1v1h-1zm4 0h1v1h-1zm2 0h1v1h-1zm4 0h1v1h-1zm-14 2h1v1H8zm6 0h1v1h-1zm6 0h1v1h-1zm2 0h1v1h-1zm-12 2h1v1H9zm2 0h1v1h-1zm2 0h1v1h-1zm4 0h1v1h-1zm4 0h1v1h-1z" fill="currentColor"/>
+                    <rect x="9" y="9" width="1" height="1" fill="currentColor" />
+                    <rect x="11" y="9" width="2" height="1" fill="currentColor" />
+                    <rect x="14" y="9" width="1" height="1" fill="currentColor" />
+                    <rect x="16" y="9" width="1" height="1" fill="currentColor" />
+                    <rect x="18" y="9" width="2" height="1" fill="currentColor" />
+                    <rect x="21" y="9" width="1" height="1" fill="currentColor" />
+                    <rect x="9" y="11" width="2" height="2" fill="currentColor" />
+                    <rect x="12" y="11" width="1" height="1" fill="currentColor" />
+                    <rect x="15" y="11" width="3" height="1" fill="currentColor" />
+                    <rect x="19" y="11" width="1" height="2" fill="currentColor" />
+                    <rect x="21" y="11" width="2" height="1" fill="currentColor" />
+                    <rect x="10" y="14" width="1" height="2" fill="currentColor" />
+                    <rect x="12" y="14" width="2" height="1" fill="currentColor" />
+                    <rect x="15" y="14" width="1" height="1" fill="currentColor" />
+                    <rect x="17" y="14" width="2" height="2" fill="currentColor" />
+                    <rect x="20" y="14" width="1" height="1" fill="currentColor" />
+                    <rect x="9" y="17" width="1" height="1" fill="currentColor" />
+                    <rect x="11" y="17" width="2" height="1" fill="currentColor" />
+                    <rect x="14" y="17" width="1" height="2" fill="currentColor" />
+                    <rect x="16" y="17" width="1" height="1" fill="currentColor" />
+                    <rect x="19" y="17" width="2" height="1" fill="currentColor" />
+                    <rect x="22" y="17" width="1" height="1" fill="currentColor" />
+                    <rect x="10" y="19" width="2" height="1" fill="currentColor" />
+                    <rect x="13" y="19" width="1" height="1" fill="currentColor" />
+                    <rect x="15" y="19" width="2" height="2" fill="currentColor" />
+                    <rect x="18" y="19" width="1" height="1" fill="currentColor" />
+                    <rect x="20" y="19" width="2" height="1" fill="currentColor" />
+                    <rect x="9" y="22" width="1" height="2" fill="currentColor" />
+                    <rect x="11" y="22" width="2" height="1" fill="currentColor" />
+                    <rect x="15" y="22" width="1" height="1" fill="currentColor" />
+                    <rect x="17" y="22" width="2" height="1" fill="currentColor" />
+                    <rect x="20" y="22" width="1" height="2" fill="currentColor" />
+                    <rect x="22" y="22" width="3" height="1" fill="currentColor" />
+                    <rect x="26" y="22" width="2" height="2" fill="currentColor" />
+                    <rect x="10" y="25" width="2" height="1" fill="currentColor" />
+                    <rect x="13" y="25" width="1" height="2" fill="currentColor" />
+                    <rect x="16" y="25" width="2" height="1" fill="currentColor" />
+                    <rect x="19" y="25" width="1" height="1" fill="currentColor" />
+                    <rect x="21" y="25" width="3" height="1" fill="currentColor" />
+                    <rect x="25" y="25" width="1" height="1" fill="currentColor" />
+                    <rect x="27" y="25" width="1" height="2" fill="currentColor" />
+                  </svg>
+                </div>
+              </div>
+
+              {/* Barcode Simulator */}
+              <div className="flex flex-col items-center justify-center pt-4 pb-2 mt-4 border-t border-dashed border-stone-300">
+                <svg className="w-48 h-6 text-slate-850" viewBox="0 0 100 20" xmlns="http://www.w3.org/2000/svg">
+                  <rect x="5" y="2" width="2" height="15" fill="currentColor" />
+                  <rect x="8" y="2" width="1" height="15" fill="currentColor" />
+                  <rect x="10" y="2" width="3" height="15" fill="currentColor" />
+                  <rect x="14" y="2" width="1" height="15" fill="currentColor" />
+                  <rect x="16" y="2" width="2" height="15" fill="currentColor" />
+                  <rect x="20" y="2" width="4" height="15" fill="currentColor" />
+                  <rect x="25" y="2" width="1" height="15" fill="currentColor" />
+                  <rect x="27" y="2" width="2" height="15" fill="currentColor" />
+                  <rect x="30" y="2" width="1" height="15" fill="currentColor" />
+                  <rect x="32" y="2" width="3" height="15" fill="currentColor" />
+                  <rect x="37" y="2" width="1" height="15" fill="currentColor" />
+                  <rect x="39" y="2" width="2" height="15" fill="currentColor" />
+                  <rect x="42" y="2" width="4" height="15" fill="currentColor" />
+                  <rect x="47" y="2" width="1" height="15" fill="currentColor" />
+                  <rect x="49" y="2" width="3" height="15" fill="currentColor" />
+                  <rect x="53" y="2" width="1" height="15" fill="currentColor" />
+                  <rect x="55" y="2" width="2" height="15" fill="currentColor" />
+                  <rect x="58" y="2" width="1" height="15" fill="currentColor" />
+                  <rect x="60" y="2" width="3" height="15" fill="currentColor" />
+                  <rect x="64" y="2" width="1" height="15" fill="currentColor" />
+                  <rect x="66" y="2" width="2" height="15" fill="currentColor" />
+                  <rect x="70" y="2" width="4" height="15" fill="currentColor" />
+                  <rect x="75" y="2" width="1" height="15" fill="currentColor" />
+                  <rect x="77" y="2" width="2" height="15" fill="currentColor" />
+                  <rect x="80" y="2" width="1" height="15" fill="currentColor" />
+                  <rect x="82" y="2" width="3" height="15" fill="currentColor" />
+                  <rect x="86" y="2" width="1" height="15" fill="currentColor" />
+                  <rect x="88" y="2" width="2" height="15" fill="currentColor" />
+                  <rect x="91" y="2" width="4" height="15" fill="currentColor" />
+                </svg>
+                <span className="text-[8px] font-mono tracking-widest text-slate-400 mt-1">{invoiceDetails.invoiceNo}</span>
+              </div>
+
+              {/* Footer Note */}
+              <div className="text-center text-[8px] text-slate-500 font-bold mt-2 pt-2 border-t border-stone-150">
+                <p>THANK YOU FOR YOUR VISIT! HAVE A WONDERFUL DAY.</p>
+                <p className="mt-0.5 text-[7px] font-semibold text-slate-400">SALONSYNC TECHNOLOGY PARTNER</p>
               </div>
 
             </div>

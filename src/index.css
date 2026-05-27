@@ -137,5 +137,18 @@ main {
   .no-print {
     display: none !important;
   }
+
+/* Auto-dismiss Toast progress bar keyframe */
+@keyframes toast-progress {
+  from {
+    width: 100%;
+  }
+  to {
+    width: 0%;
+  }
+}
+
+.animate-toast-progress {
+  animation: toast-progress 4s linear forwards;
 }
 
