@@ -1,5 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
+import { useApp } from '../context/AppContext';
 import { 
   Scissors, 
   LayoutDashboard, 
@@ -14,6 +15,22 @@ import {
 } from 'lucide-react';
 
 const Sidebar = () => {
+  const { currentDate } = useApp();
+  
+  const formatDateDisplay = (dateStr) => {
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      return d.toLocaleDateString('en-IN', {
+        day: 'numeric',
+        month: 'short',
+        year: 'numeric'
+      });
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
   const menuItems = [
     { name: 'Dashboard', path: '/', icon: LayoutDashboard },
     { name: 'Appointments', path: '/appointments', icon: Calendar },
@@ -69,7 +86,7 @@ const Sidebar = () => {
       <div className="p-4 border-t border-slate-800">
         <div className="bg-gradient-to-r from-purple-950/40 to-slate-900/60 border border-purple-900/30 rounded-2xl p-4 text-center">
           <p className="text-[10px] text-purple-400 font-bold uppercase tracking-wider mb-1">Active Session</p>
-          <div className="text-white font-bold text-sm">26 May 2026</div>
+          <div className="text-white font-bold text-sm">{formatDateDisplay(currentDate)}</div>
           <p className="text-[9px] text-slate-500 mt-1">System Time Live</p>
         </div>
       </div>

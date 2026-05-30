@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../context/AppContext';
+import { useNavigate } from 'react-router-dom';
 import { 
   Users, 
   Plus, 
@@ -12,7 +13,8 @@ import {
   Calendar,
   CheckCircle,
   TrendingUp,
-  Search
+  Search,
+  Eye
 } from 'lucide-react';
 
 const Staff = () => {
@@ -22,6 +24,8 @@ const Staff = () => {
     appointments, 
     addStaff 
   } = useApp();
+
+  const navigate = useNavigate();
 
   // Search filter for lists/table
   const [searchTerm, setSearchTerm] = useState('');
@@ -50,7 +54,7 @@ const Staff = () => {
     const completedAppts = appointments.filter(appt => {
       const matchesStaff = appt.staffId === member.id;
       const matchesBranch = appt.branchId === selectedBranchId;
-      const matchesStatus = appt.status === 'completed';
+      const matchesStatus = appt.status === 'completed' || appt.status === 'billed';
       const matchesMonth = appt.date && appt.date.startsWith('2026-05');
       return matchesStaff && matchesBranch && matchesStatus && matchesMonth;
     });
@@ -158,9 +162,10 @@ const Staff = () => {
   const totalRevenueGenerated = staffWithStats.reduce((sum, s) => sum + s.revenue, 0);
 
   return (
-    <div className="p-8 space-y-8 max-w-[1600px] mx-auto select-none animate-slide-in">
+    <div className="p-8 space-y-8 max-w-[1600px] mx-auto select-none">
       
-      {/* HEADER SECTION */}
+      <div className="space-y-8 animate-slide-in">
+        {/* HEADER SECTION */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Staff Management</h1>
@@ -264,7 +269,7 @@ const Staff = () => {
                 : 0;
 
               return (
-                <div key={member.id} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm hover:shadow-md hover:border-purple-200 transition-all flex flex-col justify-between space-y-5">
+                <div key={member.id} className="bg-white rounded-3xl p-6 border border-slate-100 shadow-sm hover:shadow-lg hover:border-purple-200 transition-all duration-300 flex flex-col justify-between space-y-5 transform hover:-translate-y-1 group">
                   {/* Top Bar: Avatar & Initial Details */}
                   <div className="flex items-start space-x-4">
                     {/* Unique Colored Avatar with Online Green Dot */}
@@ -329,13 +334,22 @@ const Staff = () => {
                     </div>
                   </div>
 
-                  {/* Bottom: View Details Button */}
-                  <button
-                    onClick={() => setDetailedStaff(member)}
-                    className="w-full text-center border border-purple-600 text-purple-600 hover:bg-purple-600 hover:text-white transition-all duration-200 py-2.5 rounded-xl text-xs font-bold shadow-sm"
-                  >
-                    View Details
-                  </button>
+                  {/* Bottom: View Schedule & View Details Buttons */}
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => navigate(`/appointments?staffId=${member.id}`)}
+                      className="flex-1 text-center border border-emerald-500 text-emerald-650 hover:bg-emerald-50 hover:shadow-md transition-all duration-300 py-2.5 rounded-xl text-xs font-bold shadow-sm flex items-center justify-center space-x-1 group hover:border-emerald-600 transform hover:scale-105"
+                    >
+                      <Eye className="h-3.5 w-3.5 group-hover:scale-125 transition-all duration-200" />
+                      <span>View Schedule</span>
+                    </button>
+                    <button
+                      onClick={() => setDetailedStaff(member)}
+                      className="flex-1 text-center border border-purple-600 text-purple-600 hover:bg-purple-600 hover:text-white hover:shadow-md transition-all duration-300 py-2.5 rounded-xl text-xs font-bold shadow-sm transform hover:scale-105"
+                    >
+                      View Details
+                    </button>
+                  </div>
                 </div>
               );
             })}
@@ -418,6 +432,8 @@ const Staff = () => {
         </div>
       </div>
 
+      </div>
+
       {/* VIEW DETAILS MODAL */}
       {detailedStaff && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
@@ -498,7 +514,7 @@ const Staff = () => {
       {/* FLOATING ADD STYLIST MODAL */}
       {isAddModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50 animate-in fade-in duration-200">
-          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6 border border-slate-100 space-y-6">
+          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6 border border-slate-100 space-y-6 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <h3 className="text-base font-extrabold text-slate-800">Add Staff Stylist</h3>
               <button 

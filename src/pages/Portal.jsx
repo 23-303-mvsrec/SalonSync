@@ -26,10 +26,13 @@ const Portal = () => {
     staff,
     branches,
     addAppointment,
+    addCustomer,
     customers,
+    appointments,
     selectedBranchId,
     setSelectedBranchId,
-    parseMessageNLP
+    parseMessageNLP,
+    currentDate
   } = useApp();
 
   const navigate = useNavigate();
@@ -85,7 +88,7 @@ const Portal = () => {
     bookingRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
-  const handleCustomerBookingSubmit = (e) => {
+  const handleCustomerBookingSubmit = async (e) => {
     e.preventDefault();
     if (!name || !phone || !serviceId || !staffId) {
       alert('Please fill in all booking parameters.');
@@ -97,31 +100,45 @@ const Portal = () => {
 
     if (!selectedService || !selectedStaff) return;
 
-    // Check if slot is already booked for this stylist
     const isSlotBooked = appointments.some(a =>
       a.staffId === selectedStaff.id &&
-      a.date === '2026-05-26' &&
+      a.date === currentDate &&
       a.time === time &&
       a.status !== 'cancelled'
     );
 
     if (isSlotBooked) {
-      alert(`We are sorry, but ${selectedStaff.name} is already booked at ${time} on 2026-05-26. Please select another time or stylist.`);
+      alert(`We are sorry, but ${selectedStaff.name} is already booked at ${time} on ${currentDate}. Please select another time or stylist.`);
       return;
     }
 
     // Award loyalty points & register profile internally if new customer
     const existingCust = customers.find(c => c.phone === phone.trim());
+    let customerId = existingCust ? existingCust.id : 0;
+    if (customerId === 0) {
+      try {
+        const newCust = await addCustomer({
+          name: name,
+          phone: phone.trim(),
+          preferredBranch: parseInt(branchId, 10)
+        });
+        if (newCust) {
+          customerId = newCust.id;
+        }
+      } catch (err) {
+        console.error("Failed to automatically register customer:", err);
+      }
+    }
 
-    addAppointment({
-      customerId: existingCust ? existingCust.id : 0,
+    await addAppointment({
+      customerId,
       customerName: name,
       staffId: selectedStaff.id,
       staffName: selectedStaff.name,
       serviceId: selectedService.id,
       serviceName: selectedService.name,
       branchId: parseInt(branchId, 10),
-      date: '2026-05-26', // locked to active session date
+      date: currentDate, // locked to active session date
       time: time,
       status: 'pending',
       source: 'website', // identifies it as a customer web reservation
@@ -154,7 +171,7 @@ const Portal = () => {
     setChatInput('');
     setChatIsTyping(true);
 
-    setTimeout(() => {
+    setTimeout(async () => {
       setChatIsTyping(false);
 
       if (chatStep === 'chat') {
@@ -208,7 +225,7 @@ const Portal = () => {
         // Check if slot is already booked
         const isSlotBooked = appointments.some(a =>
           a.staffId === finalProposal.stylist.id &&
-          a.date === '2026-05-26' &&
+          a.date === currentDate &&
           a.time === finalProposal.time &&
           a.status !== 'cancelled'
         );
@@ -227,16 +244,31 @@ const Portal = () => {
         }
 
         const existingCust = customers.find(c => c.phone === cleanPhone);
+        let customerId = existingCust ? existingCust.id : 0;
+        if (customerId === 0) {
+          try {
+            const newCust = await addCustomer({
+              name: finalProposal.clientName,
+              phone: cleanPhone,
+              preferredBranch: finalProposal.branchId || 1
+            });
+            if (newCust) {
+              customerId = newCust.id;
+            }
+          } catch (err) {
+            console.error("Failed to automatically register chatbot customer:", err);
+          }
+        }
 
-        addAppointment({
-          customerId: existingCust ? existingCust.id : 0,
+        await addAppointment({
+          customerId,
           customerName: finalProposal.clientName,
           staffId: finalProposal.stylist.id,
           staffName: finalProposal.stylist.name,
           serviceId: finalProposal.service.id,
           serviceName: finalProposal.service.name,
           branchId: finalProposal.branchId,
-          date: '2026-05-26',
+          date: currentDate,
           time: finalProposal.time,
           status: 'pending',
           source: 'website',
@@ -249,7 +281,7 @@ const Portal = () => {
           ...prev,
           {
             sender: 'bot',
-            text: `🎉 **Success! Your booking is confirmed!**\n\nWe look forward to seeing you, ${finalProposal.clientName}, at our **${matchedBranchName}** branch on **2026-05-26** at **${finalProposal.time}** for **${finalProposal.service.name}**.`
+            text: `🎉 **Success! Your booking is confirmed!**\n\nWe look forward to seeing you, ${finalProposal.clientName}, at our **${matchedBranchName}** branch on **${currentDate}** at **${finalProposal.time}** for **${finalProposal.service.name}**.`
           }
         ]);
       }

@@ -27,9 +27,10 @@ import {
   TrendingDown,
   MessageSquare,
   Globe,
-  CheckCircle
+  CheckCircle,
+  AlertCircle
 } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 
 const Dashboard = () => {
   const { 
@@ -42,9 +43,11 @@ const Dashboard = () => {
     customers,
     membershipPlans,
     waMessages,
-    isLiveStreaming
+    isLiveStreaming,
+    currentDate
   } = useApp();
 
+  const navigate = useNavigate();
   const activeBranch = branches.find(b => b.id === selectedBranchId) || branches[0];
 
   // Refresh State
@@ -57,24 +60,24 @@ const Dashboard = () => {
   const branchInventory = useMemo(() => inventory.filter(i => i.branchId === selectedBranchId), [inventory, selectedBranchId]);
 
   // Current Date: Tuesday, 26 May 2026
-  const targetDate = '2026-05-26';
+  const targetDate = currentDate;
 
   // --- KPI 1: Today's Appointments ---
   const todayAppts = useMemo(() => branchAppts.filter(a => a.date === targetDate), [branchAppts, targetDate]);
   const todayApptsCount = todayAppts.length;
   
-  const completedApptsToday = todayAppts.filter(a => a.status === 'completed').length;
+  const completedApptsToday = todayAppts.filter(a => a.status === 'completed' || a.status === 'billed').length;
   const confirmedApptsToday = todayAppts.filter(a => a.status === 'confirmed' || a.status === 'inprogress').length;
   const apptRatio = todayApptsCount > 0 ? Math.round((completedApptsToday / todayApptsCount) * 100) : 0;
 
   // --- KPI 2: Today's Revenue ---
   const todayRevenue = useMemo(() => {
     return todayAppts
-      .filter(a => a.status === 'completed')
+      .filter(a => a.status === 'completed' || a.status === 'billed')
       .reduce((sum, a) => sum + a.amount, 0);
   }, [todayAppts]);
   const revenueTarget = 15000;
-  const targetPct = Math.min(100, Math.round((todayRevenue / revenueTarget) * 100));
+  const targetPct = Math.round((todayRevenue / revenueTarget) * 100);
 
   // --- KPI 3: Active Staff Today ---
   const activeStaffCount = branchStaff.length;
@@ -89,11 +92,13 @@ const Dashboard = () => {
   const availStaffCount = Math.max(0, activeStaffCount - busyStaffCount);
 
   // --- KPI 4: Low Stock Alerts ---
-  const lowStockItems = useMemo(() => branchInventory.filter(i => i.quantity <= i.minStock), [branchInventory]);
+  const lowStockItems = useMemo(() => branchInventory.filter(i => i.quantity < i.minStock), [branchInventory]);
   const lowStockCount = lowStockItems.length;
   const lowStockText = lowStockItems.slice(0, 2).map(item => item.name).join(', ') || 'No alerts';
 
-  const vipCount = useMemo(() => customers.filter(c => c.membershipId).length, [customers]);
+  const vipCount = useMemo(() => {
+    return customers.filter(c => c.membershipId && c.preferredBranch === selectedBranchId).length;
+  }, [customers, selectedBranchId]);
 
   // --- KPI Number Counter Animations ---
   const [animatedAppts, setAnimatedAppts] = useState(0);
@@ -167,21 +172,39 @@ const Dashboard = () => {
 
   // --- Recharts AreaChart: Weekly Revenue Trend ---
   const weekData = useMemo(() => {
-    // Generate static but branch-specific random data for 7 days ending today (Tue)
-    // Days representation: Wed, Thu, Fri, Sat, Sun, Mon, Tue
-    const days = ['Wed', 'Thu', 'Fri', 'Sat', 'Sun', 'Mon', 'Tue'];
-    const seed = selectedBranchId * 15;
+    const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+    const parts = targetDate.split('-');
+    if (parts.length < 3) return [];
+    const baseDate = new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
     
-    return days.map((day, idx) => {
-      if (day === 'Tue') {
-        return { day, revenue: todayRevenue };
-      }
-      // Simple trigonometric formula for stable pseudo-random data per branch
-      const randVal = Math.abs(Math.sin(seed + idx));
-      const amount = Math.round(3000 + randVal * 13000);
-      return { day, revenue: amount };
+    const daysData = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date(baseDate);
+      d.setDate(baseDate.getDate() - i);
+      
+      const dayName = dayNames[d.getDay()];
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      const dateString = `${year}-${month}-${day}`;
+      
+      daysData.push({
+        dayName,
+        dateString,
+      });
+    }
+
+    return daysData.map(({ dayName, dateString }) => {
+      const dayRevenue = branchAppts
+        .filter(a => a.date === dateString && (a.status === 'completed' || a.status === 'billed'))
+        .reduce((sum, a) => sum + a.amount, 0);
+
+      return {
+        day: dayName,
+        revenue: dayRevenue
+      };
     });
-  }, [selectedBranchId, todayRevenue]);
+  }, [branchAppts, targetDate]);
 
   // --- Live Table Feed ---
   // Sort today's appointments by time ascending
@@ -197,7 +220,7 @@ const Dashboard = () => {
       const brAppts = appointments.filter(a => a.branchId === br.id);
       const brTodayAppts = brAppts.filter(a => a.date === targetDate);
       const brRevenue = brTodayAppts
-        .filter(a => a.status === 'completed')
+        .filter(a => a.status === 'completed' || a.status === 'billed')
         .reduce((sum, a) => sum + a.amount, 0);
       const brStaffCount = staff.filter(s => s.branchId === br.id).length;
 
@@ -216,15 +239,31 @@ const Dashboard = () => {
     return Math.max(...revs, 1000);
   }, [branchPerformance]);
 
+  const formatDateDisplay = (dateStr) => {
+    try {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      return d.toLocaleDateString('en-IN', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric'
+      });
+    } catch (e) {
+      return dateStr;
+    }
+  };
+
   return (
     <div className="p-8 space-y-8 max-w-[1600px] mx-auto select-none">
       
-      {/* 1. HEADER HERO BANNER */}
-      <div className="bg-gradient-to-r from-violet-600 to-indigo-700 rounded-3xl p-8 text-white relative overflow-hidden shadow-xl border border-violet-700/20 shadow-indigo-600/10">
-        <div className="absolute right-0 top-0 w-[400px] h-[400px] bg-white/[0.03] rounded-full blur-3xl translate-x-1/3 -translate-y-1/3"></div>
-        <div className="absolute left-0 bottom-0 w-[300px] h-[300px] bg-purple-500/[0.05] rounded-full blur-2xl -translate-x-1/3 translate-y-1/3"></div>
+      {/* 1. WELCOME HERO BANNER */}
+      <div className="relative bg-gradient-to-r from-purple-600 to-indigo-600 rounded-3xl p-8 md:p-12 overflow-hidden shadow-lg shadow-purple-950/15">
+        {/* Abstract shapes */}
+        <div className="absolute right-0 top-0 w-80 h-80 bg-white/5 rounded-full blur-3xl -mr-20 -mt-20 pointer-events-none" />
+        <div className="absolute left-1/3 bottom-0 w-60 h-60 bg-indigo-500/10 rounded-full blur-2xl -ml-20 -mb-20 pointer-events-none" />
         
-        <div className="relative z-10 flex flex-col md:flex-row md:items-center justify-between gap-6">
+        <div className="relative flex flex-col md:flex-row md:items-center justify-between gap-6 z-0">
           <div>
             <h1 className="text-2xl md:text-3xl font-extrabold tracking-tight flex items-center gap-2">
               Welcome back, Admin 👋
@@ -236,7 +275,7 @@ const Dashboard = () => {
           
           <div className="flex items-center space-x-4 shrink-0">
             <div className="bg-white/10 backdrop-blur-md px-4 py-2.5 rounded-2xl border border-white/10 text-xs font-bold text-white tracking-wide">
-              Tuesday, 26 May 2026
+              {formatDateDisplay(currentDate)}
             </div>
             
             <button
@@ -254,7 +293,10 @@ const Dashboard = () => {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 animate-in fade-in duration-700">
         
         {/* Card 1: Today's Appointments */}
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md transition-all duration-200 group relative overflow-hidden">
+        <div
+          onClick={() => navigate('/appointments')}
+          className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-lg hover:border-violet-200 transition-all duration-300 group relative overflow-hidden cursor-pointer transform hover:-translate-y-1"
+        >
           <div className="flex justify-between items-start">
             <div className="space-y-1.5">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Today's Bookings</p>
@@ -283,7 +325,10 @@ const Dashboard = () => {
         </div>
 
         {/* Card 2: Today's Revenue */}
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md transition-all duration-200 group relative overflow-hidden">
+        <div
+          onClick={() => navigate('/pos')}
+          className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-lg hover:border-emerald-200 transition-all duration-300 group relative overflow-hidden cursor-pointer transform hover:-translate-y-1"
+        >
           <div className="flex justify-between items-start">
             <div className="space-y-1.5">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Today's Revenue</p>
@@ -303,7 +348,7 @@ const Dashboard = () => {
             <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
               <div 
                 className="bg-emerald-500 h-full rounded-full transition-all duration-500"
-                style={{ width: `${targetPct}%` }}
+                style={{ width: `${Math.min(100, targetPct)}%` }}
               ></div>
             </div>
             <p className="text-[10px] text-slate-500 font-bold flex items-center space-x-1 pt-1">
@@ -314,7 +359,10 @@ const Dashboard = () => {
         </div>
 
         {/* Card 3: Active Staff Today */}
-        <div className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-md transition-all duration-200 group relative overflow-hidden">
+        <div
+          onClick={() => navigate('/staff')}
+          className="bg-white p-6 rounded-3xl shadow-sm border border-slate-100 flex flex-col justify-between hover:shadow-lg hover:border-blue-200 transition-all duration-300 group relative overflow-hidden cursor-pointer transform hover:-translate-y-1"
+        >
           <div className="flex justify-between items-start">
             <div className="space-y-1.5">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Active Staff Today</p>
@@ -345,9 +393,12 @@ const Dashboard = () => {
         </div>
 
         {/* Card 4: Low Stock Alerts */}
-        <div className={`bg-white p-6 rounded-3xl shadow-sm border flex flex-col justify-between hover:shadow-md transition-all duration-200 group relative overflow-hidden ${
-          lowStockCount > 0 ? 'border-rose-300 ring-2 ring-rose-100 ring-opacity-50 animate-pulse-slow' : 'border-slate-100'
-        }`}>
+        <div
+          onClick={() => navigate('/inventory?lowStock=1')}
+          className={`bg-white p-6 rounded-3xl shadow-sm border flex flex-col justify-between hover:shadow-lg transition-all duration-300 group relative overflow-hidden cursor-pointer transform hover:-translate-y-1 ${
+            lowStockCount > 0 ? 'border-rose-300 ring-2 ring-rose-100 ring-opacity-50 animate-pulse-slow' : 'border-slate-100'
+          }`}
+        >
           <div className="flex justify-between items-start">
             <div className="space-y-1.5">
               <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Low Stock Alerts</p>
@@ -363,11 +414,30 @@ const Dashboard = () => {
               <AlertTriangle className="h-5.5 w-5.5" />
             </div>
           </div>
-          <div className="mt-4 pt-4 border-t border-slate-50 space-y-1">
+          <div className="mt-4 pt-4 border-t border-slate-50 space-y-2">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Alert items:</p>
-            <p className={`text-xs font-semibold truncate ${lowStockCount > 0 ? 'text-rose-700 font-bold' : 'text-slate-500'}`}>
-              {lowStockText}
-            </p>
+            {lowStockCount > 0 ? (
+              <div className="flex flex-wrap gap-1.5">
+                {lowStockItems.slice(0, 3).map(item => (
+                  <button
+                    key={item.id}
+                    onClick={() => navigate('/inventory?lowStock=1')}
+                    className="inline-flex items-center gap-1 px-2 py-1 bg-rose-100 text-rose-700 border border-rose-300 rounded-lg text-[9px] font-bold hover:bg-rose-200 hover:shadow-sm transition-all duration-200 group"
+                    title={item.name}
+                  >
+                    <span className="h-2 w-2 rounded-full bg-rose-500 group-hover:scale-125 transition-transform"></span>
+                    <span className="truncate max-w-[80px]">{item.name}</span>
+                  </button>
+                ))}
+                {lowStockCount > 3 && (
+                  <span className="inline-flex items-center px-2 py-1 text-[9px] font-bold text-rose-600 bg-rose-50 rounded-lg">
+                    +{lowStockCount - 3} more
+                  </span>
+                )}
+              </div>
+            ) : (
+              <p className="text-xs font-semibold text-slate-500">No low stock items</p>
+            )}
           </div>
         </div>
 
@@ -537,7 +607,7 @@ const Dashboard = () => {
                       return (
                         <tr 
                           key={appt.id} 
-                          onClick={() => setHighlightedRowId(isSelected ? null : appt.id)}
+                          onClick={() => { setHighlightedRowId(isSelected ? null : appt.id); navigate('/appointments'); }}
                           className={`cursor-pointer transition-all duration-150 ${
                             isSelected ? 'bg-violet-50/80 text-violet-900' : 'hover:bg-slate-50/50 even:bg-slate-50/20'
                           }`}
@@ -564,13 +634,13 @@ const Dashboard = () => {
                           </td>
                           <td className="py-3.5 px-4 text-center">
                             <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-wider ${
-                              appt.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                              appt.status === 'completed' || appt.status === 'billed' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
                               appt.status === 'confirmed' ? 'bg-indigo-50 text-indigo-700 border border-indigo-200' :
                               appt.status === 'inprogress' ? 'bg-amber-55 text-amber-700 border border-amber-200' :
                               appt.status === 'pending' ? 'bg-slate-50 text-slate-600 border border-slate-200' :
                               'bg-rose-50 text-rose-700 border border-rose-200'
                             }`}>
-                              {appt.status}
+                              {appt.status === 'inprogress' ? 'In Progress' : appt.status === 'billed' ? 'Billed' : appt.status.charAt(0).toUpperCase() + appt.status.slice(1)}
                             </span>
                           </td>
                           <td className="py-3.5 px-4 text-right font-extrabold text-slate-800">₹{appt.amount}</td>
@@ -727,7 +797,7 @@ const Dashboard = () => {
             return (
               <div
                 key={bp.id}
-                onClick={() => setSelectedBranchId(bp.id)}
+                onClick={() => { setSelectedBranchId(bp.id); navigate('/appointments'); }}
                 className={`cursor-pointer rounded-2xl p-5 border-2 transition-all duration-200 flex flex-col justify-between space-y-4 hover:shadow-md ${
                   isCurrent 
                     ? 'border-violet-600 bg-violet-50/10 ring-2 ring-violet-500/10' 

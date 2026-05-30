@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { useNavigate } from 'react-router-dom';
 import { 
   ShoppingCart, 
   User, 
@@ -15,10 +16,9 @@ import {
   CreditCard,
   QrCode,
   Share2,
-  DollarSign
+  DollarSign,
+  ArrowRight
 } from 'lucide-react';
-
-const SESSION_DATE = '2026-05-26';
 
 const POS = () => {
   const { 
@@ -27,15 +27,23 @@ const POS = () => {
     staff, 
     customers, 
     addAppointment,
+    updateAppointmentDetails,
     redeemCustomerPoints,
     addCustomer,
     branches,
-    membershipPlans
+    membershipPlans,
+    currentDate,
+    pendingPOSPrefill,
+    setPendingPOSPrefill,
+    setHighlightCustomerId
   } = useApp();
+
+  const navigate = useNavigate();
 
   // POS State
   const [cart, setCart] = useState([]); // Array of { serviceId, name, price, duration, category, quantity }
   const [selectedCustomerId, setSelectedCustomerId] = useState('');
+  const [prefilledAppointmentId, setPrefilledAppointmentId] = useState(null);
   
   // Customer Search State
   const [searchQuery, setSearchQuery] = useState('');
@@ -87,6 +95,44 @@ const POS = () => {
       setSelectedStaffId('');
     }
   }, [selectedBranchId]);
+
+  // Pre-fill from Appointments "Bill Now" handoff
+  useEffect(() => {
+    if (!pendingPOSPrefill) return;
+    const { appointmentId, customerName, phone, customerId, serviceId, serviceName, staffId } = pendingPOSPrefill;
+
+    if (appointmentId) {
+      setPrefilledAppointmentId(appointmentId);
+    }
+
+    // Set customer
+    if (customerId) {
+      setSelectedCustomerId(customerId.toString());
+      setSearchQuery(customerName || '');
+    } else if (customerName) {
+      setIsWalkIn(true);
+      setWalkInName(customerName);
+      setWalkInPhone(phone || '');
+    }
+
+    // Pre-add service to cart
+    if (serviceId) {
+      const svc = services.find(s => s.id === serviceId);
+      if (svc) {
+        setCart([{ serviceId: svc.id, name: svc.name, price: svc.price, duration: svc.duration, category: svc.category, quantity: 1 }]);
+      } else if (serviceName) {
+        // Fallback: add by name match
+        const svcByName = services.find(s => s.name === serviceName);
+        if (svcByName) setCart([{ serviceId: svcByName.id, name: svcByName.name, price: svcByName.price, duration: svcByName.duration, category: svcByName.category, quantity: 1 }]);
+      }
+    }
+
+    // Pre-select staff
+    if (staffId) setSelectedStaffId(staffId.toString());
+
+    // Clear the prefill so it only fires once
+    setPendingPOSPrefill(null);
+  }, [pendingPOSPrefill]);
 
   // Active customer object
   const activeCustomer = customers.find(c => c.id === parseInt(selectedCustomerId, 10));
@@ -218,7 +264,7 @@ const POS = () => {
   const selectedStylist = staff.find(s => s.id === parseInt(selectedStaffId, 10));
 
   // Generate Invoice handler
-  const handleGenerateInvoice = () => {
+  const handleGenerateInvoice = async () => {
     if (cart.length === 0) return;
     if (!isWalkIn && !selectedCustomerId) {
       alert('Please select a customer or check Walk-in Customer.');
@@ -239,14 +285,14 @@ const POS = () => {
       if (existing) {
         finalCustomerId = existing.id;
       } else {
-        const newCust = addCustomer({
+        const newCust = await addCustomer({
           name: customerName,
           phone: customerPhone,
           loyaltyPoints: 0,
           totalVisits: 0,
           preferredBranch: selectedBranchId
         });
-        finalCustomerId = newCust.id;
+        finalCustomerId = newCust ? newCust.id : 0;
       }
     } else if (activeCustomer) {
       finalCustomerId = activeCustomer.id;
@@ -254,30 +300,45 @@ const POS = () => {
 
     // 2. Deduct redeemed points in global context
     if (loyaltyPointsToRedeem > 0 && finalCustomerId > 0) {
-      redeemCustomerPoints(finalCustomerId, loyaltyPointsToRedeem);
+      await redeemCustomerPoints(finalCustomerId, loyaltyPointsToRedeem);
     }
 
-    // 3. Add appointments for each service item
-    cart.forEach(item => {
+    // 3. Add appointments for each service item sequentially to avoid race conditions
+    let isPrefillUsed = false;
+    for (const item of cart) {
       // Calculate item share of total amount paid
       const itemWeight = (item.price * item.quantity) / (subtotal || 1);
       const itemShareOfTotal = Math.round(grandTotal * itemWeight);
 
-      addAppointment({
-        customerId: finalCustomerId,
-        customerName: customerName,
-        staffId: selectedStylist ? selectedStylist.id : 0,
-        staffName: selectedStylist ? selectedStylist.name : 'Any Stylist',
-        serviceId: item.serviceId,
-        serviceName: item.name,
-        branchId: selectedBranchId,
-        date: SESSION_DATE,
-        time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
-        status: 'completed',
-        source: 'walkin',
-        amount: itemShareOfTotal
-      });
-    });
+      if (prefilledAppointmentId && !isPrefillUsed) {
+        await updateAppointmentDetails(prefilledAppointmentId, {
+          status: 'billed',
+          amount: itemShareOfTotal,
+          staffId: selectedStylist ? selectedStylist.id : 0,
+          staffName: selectedStylist ? selectedStylist.name : 'Any Stylist',
+          customerId: finalCustomerId,
+          customerName: customerName,
+          serviceId: item.serviceId,
+          serviceName: item.name
+        });
+        isPrefillUsed = true;
+      } else {
+        await addAppointment({
+          customerId: finalCustomerId,
+          customerName: customerName,
+          staffId: selectedStylist ? selectedStylist.id : 0,
+          staffName: selectedStylist ? selectedStylist.name : 'Any Stylist',
+          serviceId: item.serviceId,
+          serviceName: item.name,
+          branchId: selectedBranchId,
+          date: currentDate,
+          time: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
+          status: 'billed',
+          source: 'walkin',
+          amount: itemShareOfTotal
+        });
+      }
+    }
 
     // 4. Capture Invoice Details
     setInvoiceDetails({
@@ -286,7 +347,7 @@ const POS = () => {
       branchAddress: `${activeBranch.name}, Banjara Hills, Road No. 12, Hyderabad`,
       customerName,
       customerPhone,
-      customerPoints: activeCustomer ? activeCustomer.loyaltyPoints : 0,
+      customerPoints: activeCustomer ? Math.max(0, activeCustomer.loyaltyPoints - loyaltyPointsToRedeem + pointsEarned) : 0,
       customerTier: activeCustomer ? getLoyaltyTier(activeCustomer.loyaltyPoints).label : 'None',
       services: cart.map(item => ({
         name: item.name,
@@ -361,6 +422,7 @@ Thank you! Visit again at SalonSync.`;
     setPaymentMethod('Cash');
     setShowInvoice(false);
     setInvoiceDetails(null);
+    setPrefilledAppointmentId(null);
   };
 
   return (
@@ -1111,7 +1173,7 @@ Thank you! Visit again at SalonSync.`;
             </div>
 
             {/* Modal Bottom Action Controls (no-print) */}
-            <div className="flex space-x-3 pt-3 border-t border-slate-100 no-print">
+            <div className="flex flex-wrap gap-2 pt-3 border-t border-slate-100 no-print">
               <button
                 onClick={() => window.print()}
                 className="flex-1 bg-slate-150 hover:bg-slate-200 text-slate-650 font-bold py-3 rounded-xl text-xs transition-colors flex items-center justify-center space-x-2"
@@ -1126,6 +1188,19 @@ Thank you! Visit again at SalonSync.`;
                 <Share2 className="h-4.5 w-4.5" />
                 <span>Share</span>
               </button>
+              {invoiceDetails?.customerId && (
+                <button
+                  onClick={() => {
+                    setHighlightCustomerId(invoiceDetails.customerId);
+                    handleNewBill();
+                    navigate('/customers');
+                  }}
+                  className="flex-1 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 font-bold py-3 rounded-xl text-xs transition-colors flex items-center justify-center gap-1.5"
+                >
+                  <User className="h-4 w-4" />
+                  <span>View Customer</span>
+                </button>
+              )}
               <button
                 onClick={handleNewBill}
                 className="flex-1 bg-violet-600 hover:bg-violet-700 text-white font-bold py-3 rounded-xl text-xs transition-colors flex items-center justify-center space-x-2 shadow-md shadow-violet-600/10"

@@ -1,5 +1,6 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useApp } from '../context/AppContext';
+import { useNavigate } from 'react-router-dom';
 import { 
   Users, 
   Plus, 
@@ -10,7 +11,10 @@ import {
   Mail, 
   MapPin, 
   Sparkles,
-  AlertCircle
+  AlertCircle,
+  ChevronDown,
+  ChevronUp,
+  Zap
 } from 'lucide-react';
 
 const Customers = () => {
@@ -18,8 +22,13 @@ const Customers = () => {
     selectedBranchId,
     customers, 
     branches, 
-    addCustomer 
+    addCustomer,
+    appointments,
+    highlightCustomerId,
+    setHighlightCustomerId
   } = useApp();
+
+  const navigate = useNavigate();
 
   // Search filter state
   const [searchTerm, setSearchTerm] = useState('');
@@ -36,6 +45,21 @@ const Customers = () => {
   // Filter customer database by selected branch
   const branchCustomers = customers.filter(cust => cust.preferredBranch === selectedBranchId);
 
+  // Real-time visit count derived from actual appointments
+  const getCustomerVisits = (custId) => appointments.filter(a => a.customerId === custId && (a.status === 'completed' || a.status === 'billed')).length;
+  const getCustomerLastVisits = (custId) => [
+    ...appointments.filter(a => a.customerId === custId)
+  ].sort((a, b) => (b.date + b.time).localeCompare(a.date + a.time)).slice(0, 3);
+
+  // Highlighted customer ref (from POS deep-link)
+  const highlightRef = useRef(null);
+  useEffect(() => {
+    if (highlightCustomerId && highlightRef.current) {
+      highlightRef.current.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      setTimeout(() => setHighlightCustomerId(null), 3000);
+    }
+  }, [highlightCustomerId]);
+
   const filteredCustomers = branchCustomers.filter(cust => {
     const term = searchTerm.toLowerCase();
     return cust.name.toLowerCase().includes(term) || 
@@ -51,6 +75,9 @@ const Customers = () => {
   const topMember = branchCustomers.length > 0 
     ? [...branchCustomers].sort((a, b) => b.loyaltyPoints - a.loyaltyPoints)[0]
     : null;
+
+  // Expanded visit history state
+  const [expandedCustId, setExpandedCustId] = useState(null);
 
   // Submit new customer profile
   const handleSubmit = (e) => {
@@ -171,9 +198,18 @@ const Customers = () => {
         ) : (
           filteredCustomers.map((cust) => {
             const prefBranch = branches.find(b => b.id === cust.preferredBranch) || branches[0];
+            const realVisits = getCustomerVisits(cust.id);
+            const lastVisits = getCustomerLastVisits(cust.id);
+            const isExpanded = expandedCustId === cust.id;
+            const isHighlighted = highlightCustomerId === cust.id;
             return (
-              <div key={cust.id} className="bg-white border border-slate-100 rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-200 flex flex-col justify-between space-y-5">
-                
+              <div
+                key={cust.id}
+                ref={isHighlighted ? highlightRef : null}
+                className={`bg-white border rounded-2xl p-6 shadow-sm hover:shadow-md transition-all duration-300 flex flex-col justify-between space-y-4 ${
+                  isHighlighted ? 'border-violet-500 ring-2 ring-violet-300/50 shadow-violet-100' : 'border-slate-100'
+                }`}
+              >
                 {/* Profile header initials & loyalty tier */}
                 <div className="flex justify-between items-start">
                   <div className="flex items-center space-x-3.5">
@@ -200,7 +236,7 @@ const Customers = () => {
                 </div>
 
                 {/* Contacts details & Home Branch */}
-                <div className="space-y-2 border-y border-slate-50 py-4 text-xs font-semibold text-slate-600">
+                <div className="space-y-2 border-y border-slate-50 py-3 text-xs font-semibold text-slate-600">
                   <div className="flex items-center space-x-2.5">
                     <Phone className="h-3.5 w-3.5 text-slate-400 shrink-0" />
                     <span>{cust.phone}</span>
@@ -217,21 +253,64 @@ const Customers = () => {
                   </div>
                 </div>
 
-                {/* Total Visits & Tier level */}
+                {/* Real Visits & Tier + Book shortcut */}
                 <div className="flex justify-between items-center text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                   <span className="flex items-center space-x-1">
                     <Calendar className="h-3.5 w-3.5" />
-                    <span>Visits: <strong className="text-slate-700">{cust.totalVisits}</strong></span>
+                    <span>Visits: <strong className="text-slate-700">{realVisits}</strong></span>
                   </span>
-                  
-                  {cust.totalVisits >= 15 ? (
-                    <span className="text-purple-600 font-extrabold">Platinum Client</span>
-                  ) : cust.totalVisits >= 5 ? (
-                    <span className="text-indigo-500 font-extrabold">Gold Client</span>
+                  {realVisits >= 15 ? (
+                    <span className="text-purple-600 font-extrabold">Platinum</span>
+                  ) : realVisits >= 5 ? (
+                    <span className="text-indigo-500 font-extrabold">Gold</span>
                   ) : (
-                    <span className="text-slate-400">Regular Client</span>
+                    <span className="text-slate-400">Regular</span>
                   )}
                 </div>
+
+                {/* Visit History toggle */}
+                {lastVisits.length > 0 && (
+                  <div>
+                    <button
+                      onClick={() => setExpandedCustId(isExpanded ? null : cust.id)}
+                      className="flex items-center gap-1.5 text-[10px] font-bold text-slate-500 hover:text-violet-600 transition-colors w-full text-left"
+                    >
+                      {isExpanded ? <ChevronUp className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                      {isExpanded ? 'Hide' : 'Show'} Visit History ({lastVisits.length})
+                    </button>
+                    {isExpanded && (
+                      <div className="mt-2 space-y-1.5">
+                        {lastVisits.map(v => (
+                          <div key={v.id} className="flex items-center justify-between bg-slate-50 rounded-xl px-3 py-2 text-[10px]">
+                            <div>
+                              <p className="font-bold text-slate-700 truncate max-w-[140px]">{v.serviceName}</p>
+                              <p className="text-slate-400 font-semibold">{v.date} · {v.staffName}</p>
+                            </div>
+                            <div className="text-right shrink-0">
+                              <p className="font-black text-slate-700">₹{v.amount}</p>
+                              <span className={`inline-flex px-1.5 py-0.5 rounded-full font-extrabold uppercase text-[8px] ${
+                                v.status === 'completed' || v.status === 'billed' ? 'bg-emerald-50 text-emerald-700' :
+                                v.status === 'inprogress' ? 'bg-amber-50 text-amber-700' :
+                                'bg-slate-100 text-slate-500'
+                              }`}>
+                                {v.status === 'inprogress' ? 'In Progress' : v.status === 'billed' ? 'Billed' : v.status}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
+                {/* Book Appointment shortcut */}
+                <button
+                  onClick={() => navigate(`/appointments?custId=${cust.id}`)}
+                  className="w-full flex items-center justify-center gap-1.5 bg-violet-50 hover:bg-violet-100 hover:shadow-md border border-violet-200 text-violet-700 font-bold py-2 rounded-xl text-[10px] transition-all duration-200 group"
+                >
+                  <Zap className="h-3.5 w-3.5 group-hover:rotate-12 transition-transform" />
+                  Book Appointment
+                </button>
 
               </div>
             );
@@ -242,7 +321,7 @@ const Customers = () => {
       {/* Floating Add Customer Modal */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm flex items-center justify-center p-4 z-50">
-          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6 border border-slate-100 space-y-6">
+          <div className="bg-white rounded-3xl w-full max-w-sm shadow-2xl p-6 border border-slate-100 space-y-6 max-h-[90vh] overflow-y-auto"> 
             <div className="flex justify-between items-center border-b border-slate-100 pb-3">
               <h3 className="text-base font-extrabold text-slate-800">Add Customer Profile</h3>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600 text-sm font-bold">✕</button>

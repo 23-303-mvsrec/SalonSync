@@ -1,12 +1,15 @@
 import React, { useState } from 'react';
 import BranchSelector from './BranchSelector';
+import DateSelector from './DateSelector';
 import { Bell, Shield, LogOut, Settings, Award } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { useNavigate } from 'react-router-dom';
 
 const Navbar = ({ pageTitle }) => {
   const [showNotifications, setShowNotifications] = useState(false);
   const [showProfileDropdown, setShowProfileDropdown] = useState(false);
   const { notificationsLog, markNotificationsAsRead } = useApp();
+  const navigate = useNavigate();
 
   const unreadCount = notificationsLog.filter(n => n.unread).length;
 
@@ -19,20 +22,31 @@ const Navbar = ({ pageTitle }) => {
     }
   };
 
+  // Determine deep-link path from notification type/message
+  const getNotifPath = (notif) => {
+    const type = notif.type?.toLowerCase() || '';
+    const msg = notif.message?.toLowerCase() || '';
+    if (type === 'whatsapp' || type === 'instagram' || type === 'voice call') return '/integrations';
+    if (msg.includes('stock') || msg.includes('inventory') || type === 'sms') return '/inventory';
+    if (msg.includes('appointment') || msg.includes('checked in') || msg.includes('completed')) return '/appointments';
+    return null;
+  };
+
   return (
     <header className="h-20 bg-white border-b border-slate-100 shadow-sm flex items-center justify-between px-8 relative z-10">
-      {/* Left side: Branch Selector */}
-      <div className="flex items-center">
-        <BranchSelector />
-      </div>
+      {/* Left side: Page Title */}
+      <h2 className="text-lg md:text-xl font-extrabold text-slate-800 tracking-tight shrink-0 hidden md:block">{pageTitle}</h2>
 
-      {/* Center: Dynamic Page Title */}
-      <div className="absolute left-1/2 -translate-x-1/2 hidden md:block">
-        <h2 className="text-xl font-extrabold text-slate-800 tracking-tight">{pageTitle}</h2>
-      </div>
-
-      {/* Right side: Utilities */}
-      <div className="flex items-center space-x-6">
+      {/* Right side: Filters & Actions */}
+      <div className="flex items-center space-x-4 md:space-x-6 ml-auto">
+        <div className="flex items-center space-x-2 md:space-x-3">
+          <BranchSelector />
+          <DateSelector />
+        </div>
+        
+        <div className="h-6 w-px bg-slate-200 hidden md:block"></div>
+        
+        <div className="flex items-center space-x-4">
         {/* Notifications Icon with Dropdown */}
         <div className="relative">
           <button
@@ -66,26 +80,44 @@ const Navbar = ({ pageTitle }) => {
                     No notifications yet.
                   </div>
                 ) : (
-                  notificationsLog.map((notif) => (
-                    <div 
-                      key={notif.id} 
-                      className={`px-4 py-3 hover:bg-slate-50 transition-colors duration-150 flex flex-col space-y-1 text-left ${
-                        notif.unread ? 'bg-purple-50/20' : ''
-                      }`}
-                    >
-                      <div className="flex justify-between items-center">
-                        <span className={`text-[7px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full ${
-                          notif.type === 'WhatsApp' 
-                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-150' 
-                            : 'bg-blue-50 text-blue-750 border border-blue-150'
-                        }`}>
-                          {notif.type}
-                        </span>
-                        <span className="text-[9px] text-slate-400 font-bold">{notif.timestamp}</span>
+                  notificationsLog.map((notif) => {
+                    const path = getNotifPath(notif);
+                    return (
+                      <div 
+                        key={notif.id} 
+                        onClick={() => {
+                          if (path) {
+                            setShowNotifications(false);
+                            navigate(path);
+                          }
+                        }}
+                        className={`px-4 py-3 transition-colors duration-150 flex flex-col space-y-1 text-left ${
+                          path ? 'cursor-pointer hover:bg-violet-50/40' : 'hover:bg-slate-50'
+                        } ${notif.unread ? 'bg-purple-50/20' : ''}`}
+                      >
+                        <div className="flex justify-between items-center">
+                          <span className={`text-[7px] font-black uppercase tracking-wider px-1.5 py-0.5 rounded-full ${
+                            notif.type === 'WhatsApp' 
+                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-150' 
+                              : notif.type === 'Instagram'
+                              ? 'bg-pink-50 text-pink-700 border border-pink-150'
+                              : notif.type === 'Voice Call'
+                              ? 'bg-sky-50 text-sky-700 border border-sky-150'
+                              : 'bg-blue-50 text-blue-750 border border-blue-150'
+                          }`}>
+                            {notif.type}
+                          </span>
+                          <div className="flex items-center gap-2">
+                            {path && (
+                              <span className="text-[8px] text-violet-500 font-extrabold">→ View</span>
+                            )}
+                            <span className="text-[9px] text-slate-400 font-bold">{notif.timestamp}</span>
+                          </div>
+                        </div>
+                        <p className="text-[11px] text-slate-650 font-bold leading-normal">{notif.message}</p>
                       </div>
-                      <p className="text-[11px] text-slate-650 font-bold leading-normal">{notif.message}</p>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
@@ -141,7 +173,8 @@ const Navbar = ({ pageTitle }) => {
           )}
         </div>
       </div>
-    </header>
+    </div>
+  </header>
   );
 };
 

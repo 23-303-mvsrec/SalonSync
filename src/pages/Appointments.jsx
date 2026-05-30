@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { useNavigate } from 'react-router-dom';
 import { 
   Plus, 
   Search, 
@@ -13,7 +14,8 @@ import {
   MessageCircle,
   Phone,
   IndianRupee,
-  Check
+  Check,
+  Zap
 } from 'lucide-react';
 
 const Instagram = (props) => (
@@ -32,8 +34,6 @@ const Instagram = (props) => (
   </svg>
 );
 
-const SESSION_DATE = '2026-05-26';
-
 const Appointments = () => {
   const { 
     selectedBranchId, 
@@ -43,13 +43,42 @@ const Appointments = () => {
     customers, 
     addAppointment, 
     updateAppointmentStatus,
-    addCustomer
+    addCustomer,
+    currentDate,
+    setPendingPOSPrefill
   } = useApp();
+  
+  // Get URL params for pre-fill
+  const searchParams = new URLSearchParams(window.location.search);
+  const prefilStaffId = searchParams.get('staffId');
+  const prefilCustId = searchParams.get('custId');
+
+  // Local UI filter when arriving with staffId param
+  const [staffFilterId, setStaffFilterId] = useState(null);
+
+  const navigate = useNavigate();
 
   // Search & Filter State
   const [activePill, setActivePill] = useState('All'); // All | Confirmed | In Progress | Completed | Pending
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [viewMode, setViewMode] = useState('list'); // list | calendar
+
+  // Custom Confirm Modal State
+  const [confirmModal, setConfirmModal] = useState({ open: false, message: '', resolve: null });
+
+  const showConfirm = (message) => new Promise((resolve) => {
+    setConfirmModal({ open: true, message, resolve });
+  });
+
+  const handleConfirmOk = () => {
+    confirmModal.resolve(true);
+    setConfirmModal({ open: false, message: '', resolve: null });
+  };
+
+  const handleConfirmCancel = () => {
+    confirmModal.resolve(false);
+    setConfirmModal({ open: false, message: '', resolve: null });
+  };
 
   // Live Holiday API States
   const [holidays, setHolidays] = useState([]);
@@ -61,11 +90,18 @@ const Appointments = () => {
       try {
         const res = await fetch('https://date.nager.at/api/v3/PublicHolidays/2026/IN');
         if (res.ok) {
-          const data = await res.json();
-          setHolidays(data);
+          const text = await res.text();
+          if (text && text.trim()) {
+            try {
+              const data = JSON.parse(text);
+              setHolidays(data);
+            } catch (jsonErr) {
+              console.warn("Failed to parse holidays JSON:", jsonErr);
+            }
+          }
         }
       } catch (e) {
-        console.error("Error fetching live holidays:", e);
+        console.warn("Could not load live holiday database:", e.message);
       } finally {
         setIsLoadingHolidays(false);
       }
@@ -73,16 +109,48 @@ const Appointments = () => {
     fetchHolidays();
   }, []);
 
-  const todayHoliday = holidays.find(h => h.date === SESSION_DATE);
+  const todayHoliday = holidays.find(h => h.date === currentDate);
 
-  const hasConflict = (apptId, staffId, date, time) => {
+  const timeToMinutes = (timeStr) => {
+    if (!timeStr || typeof timeStr !== 'string') return 0;
+    const parts = timeStr.split(':');
+    if (parts.length < 2) return 0;
+    const [h, m] = parts.map(Number);
+    if (isNaN(h) || isNaN(m)) return 0;
+    return h * 60 + m;
+  };
+
+  const getApptDuration = (serviceId) => {
+    const s = services.find(srv => srv.id === parseInt(serviceId, 10));
+    return s ? s.duration : 30;
+  };
+
+  const isTimeOverlap = (time1, duration1, time2, duration2) => {
+    const t1Start = timeToMinutes(time1);
+    const t1End = t1Start + duration1;
+    const t2Start = timeToMinutes(time2);
+    const t2End = t2Start + duration2;
+    return t1Start < t2End && t2Start < t1End;
+  };
+
+  const hasConflict = (apptId, staffId, date, time, serviceId) => {
     if (!staffId || !date || !time) return false;
+
+    // Retrieve service ID from the existing appointment if not explicitly passed
+    let finalServiceId = serviceId;
+    if (!finalServiceId && apptId) {
+      const appt = appointments.find(a => a.id === apptId);
+      if (appt) finalServiceId = appt.serviceId;
+    }
+
+    const duration = finalServiceId ? getApptDuration(finalServiceId) : 30;
+
     return appointments.some(a => 
       a.id !== apptId &&
       a.staffId === parseInt(staffId, 10) &&
       a.date === date &&
-      a.time === time &&
-      a.status !== 'cancelled'
+      a.status !== 'cancelled' &&
+      isTimeOverlap(a.time, getApptDuration(a.serviceId), time, duration)
     );
   };
 
@@ -92,7 +160,7 @@ const Appointments = () => {
     phoneNumber: '',
     serviceId: '',
     staffId: '',
-    date: SESSION_DATE,
+    date: currentDate,
     time: '09:00',
     source: 'Walk-in'
   });
@@ -107,21 +175,70 @@ const Appointments = () => {
   const branchAppts = appointments.filter(a => a.branchId === selectedBranchId);
 
   // Stats Row calculations for selected branch today
-  const todayBranchAppts = branchAppts.filter(a => a.date === SESSION_DATE);
+  const todayBranchAppts = branchAppts.filter(a => a.date === currentDate);
   const totalToday = todayBranchAppts.length;
   const confirmedToday = todayBranchAppts.filter(a => a.status === 'confirmed').length;
   const inProgressToday = todayBranchAppts.filter(a => a.status === 'inprogress').length;
-  const completedToday = todayBranchAppts.filter(a => a.status === 'completed').length;
+  const completedToday = todayBranchAppts.filter(a => a.status === 'completed' || a.status === 'billed').length;
 
-  // Filter by pill selection
+  // Past-date read-only mode
+  const realToday = new Date().toISOString().slice(0, 10);
+  const isPastDate = currentDate < realToday;
+
+  // Filter by pill selection AND by selected date AND optional staff filter
   const filteredAppts = branchAppts.filter(appt => {
+    if (appt.date !== currentDate) return false;
+    if (staffFilterId && parseInt(staffFilterId, 10) !== appt.staffId) return false;
     if (activePill === 'All') return true;
     if (activePill === 'In Progress') return appt.status === 'inprogress';
+    if (activePill === 'Completed') return appt.status === 'completed' || appt.status === 'billed';
     return appt.status === activePill.toLowerCase();
   });
+  
+  // Pre-fill form if coming from Customer card
+  useEffect(() => {
+    if (prefilCustId) {
+      const cust = customers.find(c => c.id === parseInt(prefilCustId, 10));
+      if (cust) {
+        setFormData(prev => ({
+          ...prev,
+          customerName: cust.name,
+          phoneNumber: cust.phone
+        }));
+        setSelectedCustomer(cust);
+        setShowCustomerDropdown(false);
+        setIsModalOpen(true);
+      }
+    }
+  }, [prefilCustId]);
+
+  // Apply staff filter if present in URL
+  useEffect(() => {
+    if (prefilStaffId) {
+      setStaffFilterId(parseInt(prefilStaffId, 10));
+      // Switch to list view so filter is visible
+      setViewMode('list');
+    }
+  }, [prefilStaffId]);
+
+  // Bill Now — navigate to POS with this appointment pre-filled
+  const handleBillNow = (appt) => {
+    const customer = customers.find(c => c.id === appt.customerId);
+    setPendingPOSPrefill({
+      appointmentId: appt.id,
+      customerName: appt.customerName,
+      phone: customer?.phone || '',
+      customerId: appt.customerId,
+      serviceId: appt.serviceId,
+      serviceName: appt.serviceName,
+      staffId: appt.staffId,
+      staffName: appt.staffName,
+    });
+    navigate('/pos');
+  };
 
   // Submit appointment booking
-  const handleBookAppointment = (e) => {
+  const handleBookAppointment = async (e) => {
     e.preventDefault();
     const { customerName, phoneNumber, serviceId, staffId, date, time, source } = formData;
 
@@ -130,35 +247,65 @@ const Appointments = () => {
       return;
     }
 
-    if (!selectedCustomer) {
-      alert('Please select an existing customer from the dropdown list. Booking is restricted to existing customers in the system.');
-      return;
+    // 1. Customer Check (match selected customer, or register on-the-fly)
+    let finalCustomer = selectedCustomer;
+    if (!finalCustomer) {
+      const trimmedPhone = phoneNumber.trim();
+      const existingCust = customers.find(c => c.phone.trim() === trimmedPhone);
+      if (existingCust) {
+        finalCustomer = existingCust;
+      } else {
+        try {
+          finalCustomer = await addCustomer({
+            name: customerName,
+            phone: trimmedPhone,
+            preferredBranch: selectedBranchId
+          });
+        } catch (err) {
+          alert('Failed to register customer: ' + err.message);
+          return;
+        }
+      }
     }
 
-    // 1. Customer Check (match selected customer)
-    const customerId = selectedCustomer.id;
-    const finalCustomerName = selectedCustomer.name;
+    const customerId = finalCustomer.id;
+    const finalCustomerName = finalCustomer.name;
 
     // 2. Lookup Service & Staff
     const selectedService = services.find(s => s.id === parseInt(serviceId, 10));
-    const selectedStaff = staff.find(s => s.id === parseInt(staffId, 10));
+    let selectedStaff;
+    if (staffId === 'any') {
+      const freeStylist = activeBranchStaff.find(s => 
+        !hasConflict(null, s.id, date, time, serviceId)
+      );
+      if (freeStylist) {
+        selectedStaff = freeStylist;
+      } else {
+        if (activeBranchStaff.length === 0) {
+          alert('No stylists are registered in this branch.');
+          return;
+        }
+        const confirmBooking = await showConfirm(
+          `All stylists in this branch have a scheduling conflict at this time. Do you want to proceed and assign to the first stylist (${activeBranchStaff[0].name}) anyway?`
+        );
+        if (!confirmBooking) return;
+        selectedStaff = activeBranchStaff[0];
+      }
+    } else {
+      selectedStaff = staff.find(s => s.id === parseInt(staffId, 10));
+    }
 
     if (!selectedService || !selectedStaff) {
       alert('Invalid service or stylist selection');
       return;
     }
 
-    // Check if slot is already booked
-    const isSlotBooked = appointments.some(a =>
-      a.staffId === selectedStaff.id &&
-      a.date === date &&
-      a.time === time &&
-      a.status !== 'cancelled'
-    );
+    // Check if slot is already booked (duration-aware overlap check)
+    const isSlotBooked = hasConflict(null, selectedStaff.id, date, time, serviceId);
 
     if (isSlotBooked) {
-      const confirmBooking = window.confirm(
-        `Stylist ${selectedStaff.name} is already booked at this time (${time}) on this date (${date}). Do you still want to confirm this as a double-booking?`
+      const confirmBooking = await showConfirm(
+        `Stylist ${selectedStaff.name} has a scheduling conflict/overlap at this time (${time}) on this date (${date}). Do you still want to confirm this as a double-booking?`
       );
       if (!confirmBooking) {
         return;
@@ -187,7 +334,7 @@ const Appointments = () => {
       phoneNumber: '',
       serviceId: '',
       staffId: '',
-      date: SESSION_DATE,
+      date: currentDate,
       time: '09:00',
       source: 'Walk-in'
     });
@@ -291,7 +438,7 @@ const Appointments = () => {
       phoneNumber: '',
       serviceId: '',
       staffId: stylistId.toString(),
-      date: SESSION_DATE,
+      date: currentDate,
       time: timeStr,
       source: 'Walk-in'
     });
@@ -307,25 +454,32 @@ const Appointments = () => {
           <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Appointments</h1>
           <p className="text-sm text-slate-500">Manage bookings, check-in customers, and monitor branch capacity.</p>
         </div>
-        <button
-          onClick={() => {
-            setFormData({
-              customerName: '',
-              phoneNumber: '',
-              serviceId: '',
-              staffId: '',
-              date: SESSION_DATE,
-              time: '09:00',
-              source: 'Walk-in'
-            });
-            setSelectedCustomer(null);
-            setIsModalOpen(true);
-          }}
-          className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-5 py-3 rounded-xl transition-all duration-200 shadow-md shadow-purple-900/10 flex items-center space-x-2 self-start md:self-auto"
-        >
-          <Plus className="h-5 w-5" />
-          <span>New Appointment</span>
-        </button>
+        {isPastDate ? (
+          <div className="flex items-center gap-2.5 px-4 py-2.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 text-xs font-bold select-none self-start md:self-auto">
+            <Calendar className="h-4 w-4 text-slate-400" />
+            <span>Past Date — View Only</span>
+          </div>
+        ) : (
+          <button
+            onClick={() => {
+              setFormData({
+                customerName: '',
+                phoneNumber: '',
+                serviceId: '',
+                staffId: '',
+                date: currentDate,
+                time: '09:00',
+                source: 'Walk-in'
+              });
+              setSelectedCustomer(null);
+              setIsModalOpen(true);
+            }}
+            className="bg-purple-600 hover:bg-purple-700 text-white font-bold px-5 py-3 rounded-xl transition-all duration-200 shadow-md shadow-purple-900/10 flex items-center space-x-2 self-start md:self-auto"
+          >
+            <Plus className="h-5 w-5" />
+            <span>New Appointment</span>
+          </button>
+        )}
       </div>
 
       {/* View Switcher and Pills */}
@@ -337,7 +491,7 @@ const Appointments = () => {
               <button
                 key={pill}
                 onClick={() => setActivePill(pill)}
-                className={`px-4.5 py-2.5 rounded-full text-xs font-extrabold tracking-wide uppercase border transition-all duration-200 ${
+                className={`px-5 py-2.5 rounded-full text-xs font-extrabold tracking-wide uppercase border transition-all duration-200 ${
                   isActive
                     ? 'bg-purple-600 text-white border-purple-600 shadow-md shadow-purple-600/15'
                     : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'
@@ -349,19 +503,49 @@ const Appointments = () => {
           })}
         </div>
 
-        <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm shrink-0 self-start sm:self-auto">
-          <button
-            onClick={() => setViewMode('list')}
-            className={`px-4.5 py-2 rounded-lg text-xs font-extrabold transition-all duration-150 ${viewMode === 'list' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+        {/* If a staff filter is applied via URL, show a clearable pill */}
+        {staffFilterId && (
+          <div className="ml-2 flex items-center gap-2">
+            <div className="px-3 py-1 rounded-full bg-emerald-50 text-emerald-700 border border-emerald-100 text-xs font-extrabold flex items-center gap-2">
+              <span>Showing schedule for</span>
+              <strong className="uppercase">{(staff.find(s => s.id === parseInt(staffFilterId, 10))||{}).name || `Staff ${staffFilterId}`}</strong>
+            </div>
+            <button
+              onClick={() => setStaffFilterId(null)}
+              className="px-2 py-1 rounded-lg bg-white border border-slate-200 text-slate-500 hover:bg-slate-50 text-xs"
+            >
+              Clear
+            </button>
+          </div>
+        )}
+
+        <div className="flex items-center gap-3 self-start sm:self-auto">
+          {/* Stylist Filter Select Dropdown */}
+          <select
+            value={staffFilterId || ''}
+            onChange={(e) => setStaffFilterId(e.target.value ? parseInt(e.target.value, 10) : null)}
+            className="bg-white border border-slate-200 rounded-xl pl-4 pr-10 py-2.5 text-xs font-semibold text-slate-700 outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-300 transition-all cursor-pointer shadow-sm"
           >
-            Card List
-          </button>
-          <button
-            onClick={() => setViewMode('calendar')}
-            className={`px-4.5 py-2 rounded-lg text-xs font-extrabold transition-all duration-150 ${viewMode === 'calendar' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
-          >
-            Calendar Scheduler
-          </button>
+            <option value="">All Stylists</option>
+            {activeBranchStaff.map(s => (
+              <option key={s.id} value={s.id}>{s.name} ({s.role})</option>
+            ))}
+          </select>
+
+          <div className="flex bg-white p-1 rounded-xl border border-slate-200 shadow-sm shrink-0">
+            <button
+              onClick={() => setViewMode('list')}
+              className={`px-5 py-2 rounded-lg text-xs font-extrabold transition-all duration-150 ${viewMode === 'list' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+            >
+              Card List
+            </button>
+            <button
+              onClick={() => setViewMode('calendar')}
+              className={`px-5 py-2 rounded-lg text-xs font-extrabold transition-all duration-150 ${viewMode === 'calendar' ? 'bg-purple-600 text-white shadow-sm' : 'text-slate-500 hover:text-slate-800'}`}
+            >
+              Calendar Scheduler
+            </button>
+          </div>
         </div>
       </div>
 
@@ -469,51 +653,58 @@ const Appointments = () => {
 
                   <div className="border-t border-slate-100/80 pt-4 flex items-center justify-between gap-4">
                     <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-[9px] font-extrabold uppercase tracking-widest border ${
-                      appt.status === 'completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-250' :
+                      appt.status === 'completed' || appt.status === 'billed' ? 'bg-emerald-50 text-emerald-700 border-emerald-250' :
                       appt.status === 'confirmed' ? 'bg-indigo-50 text-indigo-700 border-indigo-250' :
                       appt.status === 'inprogress' ? 'bg-purple-50 text-purple-700 border-purple-250' :
-                      appt.status === 'pending' ? 'bg-yellow-50 text-yellow-750 border-yellow-250' :
+                      appt.status === 'pending' ? 'bg-yellow-50 text-yellow-755 border-yellow-250' :
                       'bg-slate-50 text-slate-600 border-slate-200'
                     }`}>
-                      {appt.status === 'inprogress' ? 'In Progress' : appt.status}
+                      {appt.status === 'inprogress' ? 'In Progress' : appt.status === 'billed' ? 'Billed' : appt.status}
                     </span>
 
                     <div className="flex-1 flex justify-end">
-                      {appt.status === 'confirmed' && (
-                        <button
-                          onClick={() => updateAppointmentStatus(appt.id, 'inprogress')}
-                          className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition-colors shadow-sm"
-                        >
-                          Check In
-                        </button>
-                      )}
-
-                      {appt.status === 'inprogress' && (
-                        <button
-                          onClick={() => updateAppointmentStatus(appt.id, 'completed')}
-                          className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition-colors shadow-sm flex items-center space-x-1.5"
-                        >
-                          <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
-                          </span>
-                          <span>Complete</span>
-                        </button>
-                      )}
-
-                      {appt.status === 'pending' && (
-                        <button
-                          onClick={() => updateAppointmentStatus(appt.id, 'confirmed')}
-                          className="bg-yellow-500 hover:bg-yellow-600 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition-colors shadow-sm"
-                        >
-                          Confirm
-                        </button>
-                      )}
-
-                      {appt.status === 'completed' && (
-                        <div className="h-6 w-6 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center">
-                          <Check className="h-4 w-4" />
-                        </div>
+                      {isPastDate ? (
+                        <span className="text-[9px] text-slate-350 font-semibold italic">Archive</span>
+                      ) : (
+                        <>
+                          {appt.status === 'confirmed' && (
+                            <button
+                              onClick={() => updateAppointmentStatus(appt.id, 'inprogress')}
+                              className="bg-blue-600 hover:bg-blue-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition-colors shadow-sm"
+                            >
+                              Check In
+                            </button>
+                          )}
+                          {appt.status === 'inprogress' && (
+                            <button
+                              onClick={() => updateAppointmentStatus(appt.id, 'completed')}
+                              className="bg-emerald-600 hover:bg-emerald-700 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition-colors shadow-sm flex items-center space-x-1.5"
+                            >
+                              <span className="relative flex h-2 w-2">
+                                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-white opacity-75"></span>
+                                <span className="relative inline-flex rounded-full h-2 w-2 bg-white"></span>
+                              </span>
+                              <span>Complete</span>
+                            </button>
+                          )}
+                          {appt.status === 'pending' && (
+                            <button
+                              onClick={() => updateAppointmentStatus(appt.id, 'confirmed')}
+                              className="bg-yellow-500 hover:bg-yellow-600 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition-colors shadow-sm"
+                            >
+                              Confirm
+                            </button>
+                          )}
+                          {appt.status === 'completed' && (
+                            <button
+                              onClick={() => handleBillNow(appt)}
+                              className="flex items-center gap-1.5 bg-gradient-to-r from-emerald-500 to-teal-500 hover:from-emerald-600 hover:to-teal-600 text-white font-bold px-3 py-1.5 rounded-lg text-xs transition-all shadow-sm hover:shadow-md"
+                            >
+                              <Zap className="h-3 w-3" />
+                              Bill Now
+                            </button>
+                          )}
+                        </>
                       )}
                     </div>
                   </div>
@@ -533,12 +724,14 @@ const Appointments = () => {
               Time
             </div>
             {/* Stylist Columns Headers */}
-            {activeBranchStaff.map(stylist => (
-              <div key={stylist.id} className="flex-1 p-4 text-center select-none">
-                <p className="font-extrabold text-slate-800 text-xs">{stylist.name}</p>
-                <p className="text-[9px] text-purple-600 font-bold uppercase tracking-wider mt-0.5">{stylist.role}</p>
-              </div>
-            ))}
+            {activeBranchStaff
+              .filter(s => !staffFilterId || s.id === parseInt(staffFilterId, 10))
+              .map(stylist => (
+                <div key={stylist.id} className="flex-1 p-4 text-center select-none">
+                  <p className="font-extrabold text-slate-800 text-xs">{stylist.name}</p>
+                  <p className="text-[9px] text-purple-600 font-bold uppercase tracking-wider mt-0.5">{stylist.role}</p>
+                </div>
+              ))}
             {activeBranchStaff.length === 0 && (
               <div className="flex-1 p-4 text-center text-xs text-slate-400 italic">
                 No staff members registered in this branch. Go to the Staff tab to add stylists!
@@ -587,14 +780,16 @@ const Appointments = () => {
               </div>
 
               {/* Stylist Columns */}
-              {activeBranchStaff.map(stylist => {
+              {activeBranchStaff
+                .filter(s => !staffFilterId || s.id === parseInt(staffFilterId, 10))
+                .map(stylist => {
                 // Find appointments for this stylist today
-                const stylistAppts = filteredAppts.filter(a => a.staffId === stylist.id && a.date === SESSION_DATE);
+                const stylistAppts = filteredAppts.filter(a => a.staffId === stylist.id && a.date === currentDate);
 
                 return (
                   <div key={stylist.id} className="flex-1 relative border-r border-slate-100 last:border-r-0 h-full group z-10">
-                    {/* Clickable background slots for scheduling */}
-                    {Array.from({ length: 24 }).map((_, slotIdx) => {
+                    {/* Clickable background slots for scheduling (today only) */}
+                    {!isPastDate && Array.from({ length: 24 }).map((_, slotIdx) => {
                       const hour = Math.floor(slotIdx / 2) + 9;
                       const mins = slotIdx % 2 === 0 ? '00' : '30';
                       const timeStr = `${hour.toString().padStart(2, '0')}:${mins}`;
@@ -621,7 +816,7 @@ const Appointments = () => {
 
                       const statusColor = 
                         isConflicted ? 'border-rose-500 bg-rose-50/80 text-rose-900 ring-2 ring-rose-500/20' :
-                        appt.status === 'completed' ? 'border-emerald-500 bg-emerald-50 text-emerald-800' :
+                        appt.status === 'completed' || appt.status === 'billed' ? 'border-emerald-500 bg-emerald-50 text-emerald-800' :
                         appt.status === 'confirmed' ? 'border-indigo-500 bg-indigo-50 text-indigo-850' :
                         appt.status === 'inprogress' ? 'border-purple-500 bg-purple-50 text-purple-850' :
                         appt.status === 'pending' ? 'border-amber-400 bg-amber-50/70 text-amber-900' :
@@ -650,7 +845,7 @@ const Appointments = () => {
                           </div>
 
                           {/* Quick Actions Panel if height is big enough */}
-                          {height >= 80 && (
+                          {height >= 80 && !isPastDate && (
                             <div className="flex gap-1.5 pt-1 mt-1 border-t border-slate-200/30 justify-end shrink-0 select-none">
                               {appt.status === 'confirmed' && (
                                 <button
@@ -799,10 +994,16 @@ const Appointments = () => {
                     })()}
                   </div>
                 )}
-                {!selectedCustomer && formData.customerName.trim() && (
-                  <p className="text-[10px] font-bold text-rose-500 mt-1 text-left flex items-center gap-1 animate-pulse">
-                    <AlertCircle className="h-3 w-3 text-rose-500 shrink-0" />
-                    <span>Please select this customer from the dropdown list.</span>
+                {!selectedCustomer && formData.customerName.trim() && formData.phoneNumber.trim() && (
+                  <p className="text-[10px] font-bold text-emerald-600 mt-1 text-left flex items-center gap-1">
+                    <CheckCircle className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+                    <span>New customer will be registered on-the-fly upon booking.</span>
+                  </p>
+                )}
+                {!selectedCustomer && formData.customerName.trim() && !formData.phoneNumber.trim() && (
+                  <p className="text-[10px] font-bold text-amber-600 mt-1 text-left flex items-center gap-1 animate-pulse">
+                    <AlertCircle className="h-3 w-3 text-amber-500 shrink-0" />
+                    <span>Please enter a phone number to register this customer.</span>
                   </p>
                 )}
               </div>
@@ -860,9 +1061,16 @@ const Appointments = () => {
                   className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-purple-100 focus:border-purple-300"
                 >
                   <option value="">-- Select Stylist --</option>
-                  {activeBranchStaff.map(s => (
-                    <option key={s.id} value={s.id}>{s.name} ({s.role})</option>
-                  ))}
+                  <option value="any">Any Stylist (No Preference)</option>
+                  {activeBranchStaff.map(s => {
+                    const isBusy = formData.serviceId && formData.date && formData.time &&
+                      hasConflict(null, s.id, formData.date, formData.time, formData.serviceId);
+                    return (
+                      <option key={s.id} value={s.id}>
+                        {s.name} ({s.role}){isBusy ? ' - [Busy/Conflict]' : ''}
+                      </option>
+                    );
+                  })}
                 </select>
               </div>
 
@@ -886,9 +1094,21 @@ const Appointments = () => {
                     onChange={(e) => setFormData(p => ({ ...p, time: e.target.value }))}
                     className="w-full bg-slate-50 border border-slate-200 rounded-xl px-3.5 py-2.5 text-xs font-semibold text-slate-700 outline-none focus:bg-white focus:ring-2 focus:ring-purple-100 focus:border-purple-300"
                   >
-                    {timeSlots.map(slot => (
-                      <option key={slot} value={slot}>{slot}</option>
-                    ))}
+                    {timeSlots.map(slot => {
+                      let isBusy = false;
+                      if (formData.staffId && formData.staffId !== 'any' && formData.serviceId && formData.date) {
+                        isBusy = hasConflict(null, formData.staffId, formData.date, slot, formData.serviceId);
+                      } else if (formData.staffId === 'any' && formData.serviceId && formData.date) {
+                        isBusy = activeBranchStaff.length > 0 && activeBranchStaff.every(s =>
+                          hasConflict(null, s.id, formData.date, slot, formData.serviceId)
+                        );
+                      }
+                      return (
+                        <option key={slot} value={slot}>
+                          {slot}{isBusy ? ' - [Busy/Conflict]' : ''}
+                        </option>
+                      );
+                    })}
                   </select>
                 </div>
               </div>
@@ -927,6 +1147,118 @@ const Appointments = () => {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Custom Conflict Confirmation Modal */}
+      {confirmModal.open && (
+        <div
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            background: 'rgba(10, 10, 30, 0.65)',
+            backdropFilter: 'blur(6px)',
+            WebkitBackdropFilter: 'blur(6px)',
+            animation: 'fadeIn 0.18s ease',
+          }}
+          onClick={handleConfirmCancel}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: 'linear-gradient(135deg, #1e1b4b 0%, #2d2060 100%)',
+              border: '1px solid rgba(139, 92, 246, 0.35)',
+              borderRadius: '20px',
+              padding: '32px 28px 24px',
+              maxWidth: '420px',
+              width: '90%',
+              boxShadow: '0 25px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(139,92,246,0.15)',
+              animation: 'slideUp 0.22s cubic-bezier(0.34, 1.56, 0.64, 1)',
+            }}
+          >
+            {/* Warning Icon */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '14px', marginBottom: '16px' }}>
+              <div style={{
+                width: '44px',
+                height: '44px',
+                borderRadius: '12px',
+                background: 'linear-gradient(135deg, #f59e0b, #ef4444)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+                boxShadow: '0 8px 20px rgba(239,68,68,0.35)',
+              }}>
+                <AlertCircle size={22} color="white" />
+              </div>
+              <div>
+                <p style={{ margin: 0, fontWeight: 700, fontSize: '15px', color: '#f1f5f9', letterSpacing: '-0.01em' }}>Scheduling Conflict</p>
+                <p style={{ margin: 0, fontSize: '11px', color: 'rgba(148,163,184,0.8)', marginTop: '2px' }}>Double-booking warning</p>
+              </div>
+            </div>
+
+            {/* Message */}
+            <p style={{
+              margin: '0 0 24px',
+              fontSize: '13.5px',
+              color: '#cbd5e1',
+              lineHeight: '1.6',
+              padding: '14px 16px',
+              background: 'rgba(239,68,68,0.08)',
+              borderRadius: '12px',
+              border: '1px solid rgba(239,68,68,0.2)',
+            }}>
+              {confirmModal.message}
+            </p>
+
+            {/* Buttons */}
+            <div style={{ display: 'flex', gap: '10px' }}>
+              <button
+                onClick={handleConfirmCancel}
+                style={{
+                  flex: 1,
+                  padding: '11px 0',
+                  borderRadius: '12px',
+                  border: '1px solid rgba(148,163,184,0.25)',
+                  background: 'rgba(255,255,255,0.06)',
+                  color: '#94a3b8',
+                  fontWeight: 600,
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.1)'; e.currentTarget.style.color = '#f1f5f9'; }}
+                onMouseLeave={e => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; e.currentTarget.style.color = '#94a3b8'; }}
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConfirmOk}
+                style={{
+                  flex: 1,
+                  padding: '11px 0',
+                  borderRadius: '12px',
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #f59e0b 0%, #ef4444 100%)',
+                  color: '#fff',
+                  fontWeight: 700,
+                  fontSize: '13px',
+                  cursor: 'pointer',
+                  boxShadow: '0 6px 20px rgba(239,68,68,0.4)',
+                  transition: 'all 0.15s ease',
+                  letterSpacing: '0.01em',
+                }}
+                onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-1px)'; e.currentTarget.style.boxShadow = '0 8px 25px rgba(239,68,68,0.55)'; }}
+                onMouseLeave={e => { e.currentTarget.style.transform = 'translateY(0)'; e.currentTarget.style.boxShadow = '0 6px 20px rgba(239,68,68,0.4)'; }}
+              >
+                Confirm Booking
+              </button>
+            </div>
           </div>
         </div>
       )}

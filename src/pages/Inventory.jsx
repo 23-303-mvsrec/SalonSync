@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
+import { useLocation } from 'react-router-dom';
 import { 
   Package, 
   Plus, 
@@ -21,9 +22,20 @@ const Inventory = () => {
     updateInventoryItem
   } = useApp();
 
+  const location = useLocation();
+
   // Search & Filter State
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedCategory, setSelectedCategory] = useState('All');
+  const [showOnlyLowStock, setShowOnlyLowStock] = useState(false);
+
+  // Read ?lowStock=1 URL parameter on mount
+  useEffect(() => {
+    const params = new URLSearchParams(location.search);
+    if (params.get('lowStock') === '1') {
+      setShowOnlyLowStock(true);
+    }
+  }, [location.search]);
 
   // Alert Banner dismissal state
   const [isBannerDismissed, setIsBannerDismissed] = useState(false);
@@ -60,7 +72,8 @@ const Inventory = () => {
     const matchesSearch = item.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                           item.category.toLowerCase().includes(searchTerm.toLowerCase());
     const matchesCategory = selectedCategory === 'All' || item.category.toLowerCase() === selectedCategory.toLowerCase();
-    return matchesSearch && matchesCategory;
+    const matchesLowStock = !showOnlyLowStock || item.quantity < item.minStock;
+    return matchesSearch && matchesCategory && matchesLowStock;
   });
 
   // Submit Handler for Add / Edit Modal
@@ -165,9 +178,10 @@ const Inventory = () => {
   };
 
   return (
-    <div className="p-8 space-y-6 max-w-[1600px] mx-auto select-none animate-slide-in">
+    <div className="p-8 space-y-6 max-w-[1600px] mx-auto select-none">
       
-      {/* SECTION 1 — Top Bar & summary cards */}
+      <div className="space-y-6 animate-slide-in">
+        {/* SECTION 1 — Top Bar & summary cards */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-extrabold text-slate-800 tracking-tight">Inventory Management</h1>
@@ -185,6 +199,17 @@ const Inventory = () => {
               className="pl-9 pr-4 py-2 bg-white text-slate-700 placeholder-slate-400 text-xs font-semibold rounded-xl border border-slate-200 outline-none focus:ring-2 focus:ring-purple-200 focus:border-purple-400 transition-all w-60"
             />
           </div>
+
+          {showOnlyLowStock && (
+            <button
+              onClick={() => setShowOnlyLowStock(false)}
+              className="flex items-center gap-1.5 bg-rose-50 border border-rose-200 text-rose-700 font-bold px-3 py-2 rounded-xl text-xs transition-colors hover:bg-rose-100 shrink-0"
+            >
+              <AlertTriangle className="h-3.5 w-3.5" />
+              Low Stock Only
+              <X className="h-3.5 w-3.5 ml-1" />
+            </button>
+          )}
           
           <button
             onClick={handleOpenAdd}
@@ -398,6 +423,8 @@ const Inventory = () => {
             </tbody>
           </table>
         </div>
+      </div>
+
       </div>
 
       {/* SECTION 4 — Add / Edit Item Modal */}

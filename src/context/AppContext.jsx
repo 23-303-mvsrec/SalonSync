@@ -23,7 +23,7 @@ const mockNotifications = [
 ];
 
 export const AppProvider = ({ children }) => {
-  // Load state from localStorage or fallback to mockData
+  // Global States loaded from Server or fallback mockData
   const [selectedBranchId, setSelectedBranchId] = useState(() => {
     try {
       const saved = localStorage.getItem('salon_selectedBranchId');
@@ -34,160 +34,33 @@ export const AppProvider = ({ children }) => {
     }
   });
 
-  const [appointments, setAppointments] = useState(() => {
+  const [appointments, setAppointments] = useState([]);
+  const [inventory, setInventory] = useState([]);
+  const [customers, setCustomers] = useState([]);
+  const [staff, setStaff] = useState([]);
+  const [notificationsLog, setNotificationsLog] = useState([]);
+  const [waMessages, setWaMessages] = useState([]);
+  const [webhookLogs, setWebhookLogs] = useState([]);
+  const [parsedData, setParsedData] = useState(null);
+  const [settings, setSettings] = useState({ discord_webhook_url: '' });
+  const [currentDate, setCurrentDate] = useState(() => {
     try {
-      const saved = localStorage.getItem('salon_appointments');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length >= mockAppointments.length) return parsed;
-      }
+      const saved = localStorage.getItem('salon_currentDate');
+      if (saved) return saved;
+      const d = new Date();
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
     } catch (e) {
-      console.error(e);
-    }
-    return mockAppointments;
-  });
-
-  const [inventory, setInventory] = useState(() => {
-    try {
-      const saved = localStorage.getItem('salon_inventory');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length >= mockInventory.length) return parsed;
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    return mockInventory;
-  });
-
-  const [customers, setCustomers] = useState(() => {
-    try {
-      const saved = localStorage.getItem('salon_customers');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length >= mockCustomers.length) return parsed;
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    return mockCustomers;
-  });
-
-  const [staff, setStaff] = useState(() => {
-    try {
-      const saved = localStorage.getItem('salon_staff');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed) && parsed.length >= mockStaff.length) return parsed;
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    return mockStaff;
-  });
-
-  const [notificationsLog, setNotificationsLog] = useState(() => {
-    try {
-      const saved = localStorage.getItem('salon_notificationsLog');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    return mockNotifications;
-  });
-
-  const [services] = useState(mockServices);
-  const [branches] = useState(mockBranches);
-  const [membershipPlans] = useState(mockMembershipPlans);
-
-  // --- INTEGRATIONS / WEBHOOK SIMULATOR STATE ---
-  const [waMessages, setWaMessages] = useState(() => {
-    try {
-      const saved = localStorage.getItem('salon_waMessages');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          return parsed.map((m, idx) => ({
-            id: m.id || `msg-local-${idx}-${Date.now()}`,
-            channel: m.channel || 'whatsapp',
-            status: m.status || (m.sender === 'client' ? 'pending' : 'approved'),
-            clientName: m.clientName || 'Arjun Singh',
-            phone: m.phone || '9222222222',
-            service: m.service || mockServices[0],
-            stylist: m.stylist || mockStaff[0],
-            ...m
-          }));
-        }
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    return [
-      { 
-        id: 'msg-seed-1',
-        sender: 'client', 
-        text: 'Can I schedule a Men Haircut with Ravi Kumar today at 3:30 PM? - Arjun Singh', 
-        time: '11:15',
-        channel: 'whatsapp',
-        status: 'approved',
-        clientName: 'Arjun Singh',
-        phone: '9222222222',
-        service: { id: 1, name: "Men's Haircut", price: 350 },
-        stylist: { id: 1, name: 'Ravi Kumar' }
-      },
-      { 
-        id: 'msg-seed-2',
-        sender: 'client', 
-        text: 'I need a Bridal Makeup with Anjali Reddy tomorrow morning at 9 AM. Can you confirm? Name: Kavya Rao', 
-        time: '12:40',
-        channel: 'instagram',
-        status: 'pending',
-        clientName: 'Kavya Rao',
-        phone: '9333333333',
-        service: { id: 7, name: 'Bridal Makeup', price: 4500 },
-        stylist: { id: 3, name: 'Anjali Reddy' }
-      },
-      { 
-        id: 'msg-seed-3',
-        sender: 'client', 
-        text: 'Voice Transcript: Hello, I want to book a Hair Spa with Ravi Kumar today at 5 PM. My name is Sneha Gupta.', 
-        time: '13:05',
-        channel: 'voice',
-        status: 'pending',
-        clientName: 'Sneha Gupta',
-        phone: '9555555555',
-        service: { id: 3, name: 'Hair Spa', price: 1500 },
-        stylist: { id: 1, name: 'Ravi Kumar' }
-      }
-    ];
-  });
-
-  const [webhookLogs, setWebhookLogs] = useState(() => {
-    try {
-      const saved = localStorage.getItem('salon_webhookLogs');
-      if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) return parsed;
-      }
-    } catch (e) {
-      console.error(e);
-    }
-    return [];
-  });
-
-  const [parsedData, setParsedData] = useState(() => {
-    try {
-      const saved = localStorage.getItem('salon_parsedData');
-      return saved ? JSON.parse(saved) : null;
-    } catch (e) {
-      console.error(e);
-      return null;
+      const d = new Date();
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
     }
   });
-
+  
   const [isLiveStreaming, setIsLiveStreaming] = useState(() => {
     try {
       const saved = localStorage.getItem('salon_isLiveStreaming');
@@ -200,50 +73,79 @@ export const AppProvider = ({ children }) => {
   const [isFetchingMsg, setIsFetchingMsg] = useState(false);
   const [toasts, setToasts] = useState([]);
 
-  // Sync state to localStorage on changes
+  // Cross-module navigation state
+  const [pendingPOSPrefill, setPendingPOSPrefill] = useState(null); // { customerName, phone, serviceId, serviceName, staffId, staffName }
+  const [highlightCustomerId, setHighlightCustomerId] = useState(null); // highlight a customer in Customers page
+
+  const services = mockServices;
+  const branches = mockBranches;
+  const membershipPlans = mockMembershipPlans;
+
+  const fetchDatabaseState = async () => {
+    try {
+      const [appts, inv, custs, stf, msgs, notifs, logs, setts] = await Promise.all([
+        fetch('/api/appointments').then(r => r.json()),
+        fetch('/api/inventory').then(r => r.json()),
+        fetch('/api/customers').then(r => r.json()),
+        fetch('/api/staff').then(r => r.json()),
+        fetch('/api/wa-messages').then(r => r.json()),
+        fetch('/api/notifications').then(r => r.json()),
+        fetch('/api/webhook-logs').then(r => r.json()),
+        fetch('/api/settings').then(r => r.json())
+      ]);
+
+      setAppointments(appts);
+      setInventory(inv);
+      setCustomers(custs);
+      setStaff(stf);
+      setWaMessages(msgs);
+      setNotificationsLog(notifs);
+      setWebhookLogs(logs.map(l => l.payload));
+      setSettings(setts);
+    } catch (e) {
+      console.error("Failed to connect to backend server. Retaining current/fallback states.", e);
+      // Seed mock values only if currently empty
+      setAppointments(prev => prev.length === 0 ? mockAppointments : prev);
+      setInventory(prev => prev.length === 0 ? mockInventory : prev);
+      setCustomers(prev => prev.length === 0 ? mockCustomers : prev);
+      setStaff(prev => prev.length === 0 ? mockStaff : prev);
+      setNotificationsLog(prev => prev.length === 0 ? mockNotifications : prev);
+      setWaMessages(prev => prev.length === 0 ? [
+        { 
+          id: 'msg-seed-1',
+          sender: 'client', 
+          text: 'Can I schedule a Men Haircut with Ravi Kumar today at 3:30 PM? - Arjun Singh', 
+          time: '11:15',
+          channel: 'whatsapp',
+          status: 'approved',
+          clientName: 'Arjun Singh',
+          phone: '9222222222',
+          service: { id: 1, name: "Men's Haircut", price: 350 },
+          stylist: { id: 1, name: 'Ravi Kumar' }
+        }
+      ] : prev);
+    }
+  };
+
+  // --- FETCH INITIAL STATE ON MOUNT & POLL ---
+  useEffect(() => {
+    fetchDatabaseState();
+    const interval = setInterval(fetchDatabaseState, 3000);
+    return () => clearInterval(interval);
+  }, [selectedBranchId]);
+
+  // Sync selected branch ID and live streaming switch locally
   useEffect(() => {
     localStorage.setItem('salon_selectedBranchId', selectedBranchId);
   }, [selectedBranchId]);
 
   useEffect(() => {
-    localStorage.setItem('salon_appointments', JSON.stringify(appointments));
-  }, [appointments]);
-
-  useEffect(() => {
-    localStorage.setItem('salon_inventory', JSON.stringify(inventory));
-  }, [inventory]);
-
-  useEffect(() => {
-    localStorage.setItem('salon_customers', JSON.stringify(customers));
-  }, [customers]);
-
-  useEffect(() => {
-    localStorage.setItem('salon_staff', JSON.stringify(staff));
-  }, [staff]);
-
-  useEffect(() => {
-    localStorage.setItem('salon_notificationsLog', JSON.stringify(notificationsLog));
-  }, [notificationsLog]);
-
-  useEffect(() => {
-    localStorage.setItem('salon_waMessages', JSON.stringify(waMessages));
-  }, [waMessages]);
-
-  useEffect(() => {
-    localStorage.setItem('salon_webhookLogs', JSON.stringify(webhookLogs));
-  }, [webhookLogs]);
-
-  useEffect(() => {
-    if (parsedData) {
-      localStorage.setItem('salon_parsedData', JSON.stringify(parsedData));
-    } else {
-      localStorage.removeItem('salon_parsedData');
-    }
-  }, [parsedData]);
-
-  useEffect(() => {
     localStorage.setItem('salon_isLiveStreaming', isLiveStreaming.toString());
   }, [isLiveStreaming]);
+
+  useEffect(() => {
+    localStorage.setItem('salon_currentDate', currentDate);
+  }, [currentDate]);
 
   // Toast functions
   const addToast = (message, type = 'info', actionPath = null) => {
@@ -259,20 +161,37 @@ export const AppProvider = ({ children }) => {
   };
 
   // Add notification log helper
-  const addNotification = (customerName, phone, message, type = 'WhatsApp') => {
-    const newNotif = {
-      id: 'notif-' + Date.now() + '-' + Math.floor(Math.random() * 1000),
+  const addNotification = async (customerName, phone, message, type = 'WhatsApp') => {
+    const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
+    const notifData = {
       customerName,
       phone,
       message,
       type,
-      timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }),
+      timestamp,
       status: 'Delivered',
       unread: true
     };
-    setNotificationsLog(prev => [newNotif, ...prev].slice(0, 50));
 
-    // Also trigger toast notification!
+    try {
+      const response = await fetch('/api/notifications', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(notifData)
+      });
+      if (!response.ok) throw new Error("Failed to save notification");
+      const newNotif = await response.json();
+      setNotificationsLog(prev => [newNotif, ...prev].slice(0, 50));
+    } catch (e) {
+      console.error(e);
+      const localNotif = {
+        id: 'notif-' + Date.now(),
+        ...notifData
+      };
+      setNotificationsLog(prev => [localNotif, ...prev].slice(0, 50));
+    }
+
+    // Trigger toast notification!
     if (type === 'WhatsApp') {
       addToast(`Booking request from ${customerName}`, 'whatsapp', '/integrations');
     } else if (type === 'Instagram') {
@@ -286,8 +205,92 @@ export const AppProvider = ({ children }) => {
     }
   };
 
-  const markNotificationsAsRead = () => {
-    setNotificationsLog(prev => prev.map(notif => ({ ...notif, unread: false })));
+  const markNotificationsAsRead = async () => {
+    try {
+      setNotificationsLog(prev => prev.map(notif => ({ ...notif, unread: false })));
+      await fetch('/api/notifications/read', { method: 'PUT' });
+    } catch (e) {
+      console.error("Failed to mark notifications as read:", e);
+    }
+  };
+
+  // Webhook log helper
+  const saveWebhookLog = async (payload) => {
+    try {
+      await fetch('/api/webhook-logs', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ payload })
+      });
+      setWebhookLogs(prev => [payload, ...prev].slice(0, 5));
+    } catch (e) {
+      console.error(e);
+      setWebhookLogs(prev => [payload, ...prev].slice(0, 5));
+    }
+  };
+
+  // Add simulated inbound message helper
+  const addWaMessage = async (msg) => {
+    try {
+      const response = await fetch('/api/wa-messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(msg)
+      });
+      if (!response.ok) throw new Error("Failed to add message");
+      const savedMsg = await response.json();
+      setWaMessages(prev => [...prev, savedMsg]);
+    } catch (e) {
+      console.error(e);
+      setWaMessages(prev => [...prev, msg]);
+    }
+  };
+
+  // Update wa message status helper
+  const updateWaMessageStatus = async (id, status) => {
+    try {
+      const response = await fetch(`/api/wa-messages/${id}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status })
+      });
+      if (!response.ok) throw new Error("Failed to update message status");
+      const updated = await response.json();
+      setWaMessages(prev => prev.map(m => m.id === id ? updated : m));
+    } catch (e) {
+      console.error(e);
+      setWaMessages(prev => prev.map(m => m.id === id ? { ...m, status } : m));
+    }
+  };
+
+  // Wipe messages & logs
+  const wipeLogs = async () => {
+    try {
+      await fetch('/api/wipe-logs', { method: 'POST' });
+      setWaMessages([]);
+      setWebhookLogs([]);
+    } catch (e) {
+      console.error(e);
+      setWaMessages([]);
+      setWebhookLogs([]);
+    }
+  };
+
+  const updateSettings = async (newSettings) => {
+    try {
+      const response = await fetch('/api/settings', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(newSettings)
+      });
+      if (!response.ok) throw new Error("Failed to save settings");
+      setSettings(prev => ({ ...prev, ...newSettings }));
+      return true;
+    } catch (e) {
+      console.error("Failed to update settings:", e);
+      setSettings(prev => ({ ...prev, ...newSettings }));
+      return false;
+    }
   };
 
   // Fetch random customer from randomuser.me API to simulate incoming WhatsApp bookings in real-time
@@ -318,10 +321,8 @@ export const AppProvider = ({ children }) => {
       const channels = ['whatsapp', 'instagram', 'voice'];
       const selectedChannel = channels[Math.floor(Math.random() * channels.length)];
 
-      // Assemble chat texts
       let selectedText = '';
       let mockPayload = {};
-      let logType = 'WhatsApp';
 
       if (selectedChannel === 'whatsapp') {
         const templates = [
@@ -330,8 +331,6 @@ export const AppProvider = ({ children }) => {
           `Hi, is ${randomStaff.name} free at ${randomTime}? I want to schedule a ${randomService.name}. Customer: ${fullName}.`
         ];
         selectedText = templates[Math.floor(Math.random() * templates.length)];
-        logType = 'WhatsApp';
-        
         mockPayload = {
           object: 'whatsapp_business_account',
           entry: [{
@@ -355,8 +354,6 @@ export const AppProvider = ({ children }) => {
         };
       } else if (selectedChannel === 'instagram') {
         selectedText = `[Instagram DM] Hello! Is there any slot available for ${randomService.name} with ${randomStaff.name} today at ${randomTime}? My name is ${fullName} (Ph: ${cleanPhone})`;
-        logType = 'Instagram';
-        
         mockPayload = {
           object: 'instagram_business_account',
           entry: [{
@@ -378,8 +375,6 @@ export const AppProvider = ({ children }) => {
         };
       } else {
         selectedText = `[Voice Call IVR Transcription] "Hello, I want to book a ${randomService.name} with ${randomStaff.name} today at ${randomTime}. My name is ${fullName} and my phone is ${cleanPhone}."`;
-        logType = 'Voice Call';
-        
         mockPayload = {
           object: 'voice_ivr_session',
           entry: [{
@@ -398,53 +393,51 @@ export const AppProvider = ({ children }) => {
         };
       }
 
-      const timestamp = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false });
-      
-      const newMsg = { 
-        id: 'msg-' + Date.now(),
-        sender: 'client', 
-        text: selectedText, 
-        time: timestamp,
-        channel: selectedChannel,
-        status: 'pending',
-        clientName: fullName,
-        phone: cleanPhone,
-        service: randomService,
-        stylist: randomStaff,
-        date: '2026-05-26',
-        timeSlot: randomTime,
-        branchId: randomStaff.branchId
-      };
-
-      // Push message to chat
-      setWaMessages(prev => [...prev, newMsg]);
-
-      // Push raw payload
-      setWebhookLogs(prev => [JSON.stringify(mockPayload, null, 2), ...prev].slice(0, 5));
-
-      // Parse NLP parameters
-      setParsedData({
-        messageId: newMsg.id,
-        clientName: fullName,
-        phone: cleanPhone,
-        stylist: randomStaff,
-        service: randomService,
-        time: randomTime,
-        date: '2026-05-26',
-        branchId: randomStaff.branchId,
-        channel: selectedChannel
+      // Dispatch HTTP POST request to the local webhook gateway endpoint
+      const webRes = await fetch(`/api/webhooks/${selectedChannel}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...mockPayload,
+          // Fallbacks for testing direct POST fields
+          clientName: fullName,
+          phone: cleanPhone,
+          text: selectedText,
+          branchId: selectedBranchId,
+          date: currentDate
+        })
       });
+      if (!webRes.ok) throw new Error("Webhook API failed");
+      const webData = await webRes.json();
+      
+      // Update local states by querying fresh SQLite tables
+      const [msgs, logs, notifs] = await Promise.all([
+        fetch('/api/wa-messages').then(r => r.json()),
+        fetch('/api/webhook-logs').then(r => r.json()),
+        fetch('/api/notifications').then(r => r.json())
+      ]);
 
-      // Add webhook notifications
-      addNotification(
-        fullName,
-        cleanPhone,
-        `[Real-time API Webhook] Received ${logType} booking request from ${fullName} for ${randomService.name} at ${randomTime}.`,
-        logType
-      );
+      setWaMessages(msgs);
+      setWebhookLogs(logs.map(l => l.payload));
+      setNotificationsLog(notifs);
 
+      // Save parsed data state
+      const savedMsg = webData.message;
+      if (savedMsg) {
+        setParsedData({
+          messageId: savedMsg.id,
+          clientName: savedMsg.clientName,
+          phone: savedMsg.phone,
+          stylist: savedMsg.stylist,
+          service: savedMsg.service,
+          time: savedMsg.timeSlot,
+          date: savedMsg.date,
+          branchId: savedMsg.branchId,
+          channel: savedMsg.channel
+        });
+      }
     } catch (e) {
-      console.error("Error fetching random user for simulator:", e);
+      console.error("Error running real webhook query:", e);
     } finally {
       setIsFetchingMsg(false);
     }
@@ -506,7 +499,7 @@ export const AppProvider = ({ children }) => {
       stylist: matchedStaff,
       service: matchedService,
       time: matchedTime,
-      date: '2026-05-26',
+      date: currentDate,
       branchId: matchedStaff.branchId
     };
   };
@@ -532,115 +525,177 @@ export const AppProvider = ({ children }) => {
       clearTimeout(initialTimer);
       clearInterval(interval);
     };
-  }, [isLiveStreaming, selectedBranchId]);
+  }, [isLiveStreaming, selectedBranchId, staff]);
 
   // Add a new customer
-  const addCustomer = (customerData) => {
-    const newCustomer = {
-      id: customers.length > 0 ? Math.max(...customers.map(c => c.id)) + 1 : 1,
-      name: customerData.name,
-      phone: customerData.phone,
-      email: customerData.email || '',
-      loyaltyPoints: customerData.loyaltyPoints || 0,
-      totalVisits: customerData.totalVisits || 0,
-      preferredBranch: customerData.preferredBranch || selectedBranchId,
-      membershipId: customerData.membershipId || null
-    };
-    setCustomers(prev => [...prev, newCustomer]);
+  const addCustomer = async (customerData) => {
+    try {
+      const response = await fetch('/api/customers', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(customerData)
+      });
+      if (!response.ok) throw new Error("Failed to add customer");
+      const newCustomer = await response.json();
+      
+      setCustomers(prev => {
+        // Prevent duplicate local additions if already fetched
+        if (prev.some(c => c.phone === newCustomer.phone)) return prev;
+        return [...prev, newCustomer];
+      });
 
-    // Send customer welcome notification
-    addNotification(
-      newCustomer.name,
-      newCustomer.phone,
-      `Welcome to SalonSync, ${newCustomer.name}! Your customer profile is registered. Visit count: 0. Loyalty points: 0.`,
-      'WhatsApp'
-    );
+      // Send customer welcome notification
+      await addNotification(
+        newCustomer.name,
+        newCustomer.phone,
+        `Welcome to SalonSync, ${newCustomer.name}! Your customer profile is registered. Visit count: 0. Loyalty points: 0.`,
+        'WhatsApp'
+      );
 
-    return newCustomer;
+      return newCustomer;
+    } catch (e) {
+      console.error("Backend addCustomer failed, using fallback:", e);
+      const newCustomer = {
+        id: customers.length > 0 ? Math.max(...customers.map(c => c.id)) + 1 : 1,
+        name: customerData.name,
+        phone: customerData.phone,
+        email: customerData.email || '',
+        loyaltyPoints: customerData.loyaltyPoints || 0,
+        totalVisits: customerData.totalVisits || 0,
+        preferredBranch: customerData.preferredBranch || selectedBranchId,
+        membershipId: customerData.membershipId || null
+      };
+      setCustomers(prev => [...prev, newCustomer]);
+      return newCustomer;
+    }
   };
 
   // Assign a membership plan to a customer
-  const assignMembership = (customerId, planId) => {
-    setCustomers(prev => prev.map(cust => {
-      if (cust.id === customerId) {
-        return { ...cust, membershipId: planId };
-      }
-      return cust;
-    }));
+  const assignMembership = async (customerId, planId) => {
+    try {
+      const response = await fetch(`/api/customers/${customerId}/membership`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ membershipId: planId })
+      });
+      if (!response.ok) throw new Error("Failed to assign membership");
+      const updatedCustomer = await response.json();
 
-    const customer = customers.find(c => c.id === customerId);
-    const plan = membershipPlans.find(p => p.id === planId);
-    if (customer && plan) {
-      addNotification(
-        customer.name,
-        customer.phone,
-        `Congratulations ${customer.name}! You are now subscribed to the "${plan.name}" membership. Enjoy your ${plan.discountPct}% discount!`,
-        'WhatsApp'
-      );
+      setCustomers(prev => prev.map(cust => cust.id === customerId ? updatedCustomer : cust));
+
+      const plan = membershipPlans.find(p => p.id === planId);
+      if (updatedCustomer && plan) {
+        await addNotification(
+          updatedCustomer.name,
+          updatedCustomer.phone,
+          `Congratulations ${updatedCustomer.name}! You are now subscribed to the "${plan.name}" membership. Enjoy your ${plan.discountPct}% discount!`,
+          'WhatsApp'
+        );
+      }
+    } catch (e) {
+      console.error(e);
+      setCustomers(prev => prev.map(cust => {
+        if (cust.id === customerId) {
+          return { ...cust, membershipId: planId };
+        }
+        return cust;
+      }));
     }
   };
 
   // Add a new staff member
-  const addStaff = (staffData) => {
-    const newMember = {
-      id: staff.length > 0 ? Math.max(...staff.map(s => s.id)) + 1 : 1,
-      name: staffData.name,
-      role: staffData.role,
-      branchId: staffData.branchId || selectedBranchId,
-      commissionPct: parseInt(staffData.commissionPct, 10) || 10,
-      phone: staffData.phone || ''
-    };
-    setStaff(prev => [...prev, newMember]);
-    return newMember;
+  const addStaff = async (staffData) => {
+    try {
+      const response = await fetch('/api/staff', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(staffData)
+      });
+      if (!response.ok) throw new Error("Failed to add staff");
+      const newMember = await response.json();
+      setStaff(prev => [...prev, newMember]);
+      return newMember;
+    } catch (e) {
+      console.error(e);
+      const newMember = {
+        id: staff.length > 0 ? Math.max(...staff.map(s => s.id)) + 1 : 1,
+        name: staffData.name,
+        role: staffData.role,
+        branchId: staffData.branchId || selectedBranchId,
+        commissionPct: parseInt(staffData.commissionPct, 10) || 10,
+        phone: staffData.phone || ''
+      };
+      setStaff(prev => [...prev, newMember]);
+      return newMember;
+    }
   };
 
   // Add a new appointment
-  const addAppointment = (apptData) => {
-    const apptId = appointments.length > 0 ? Math.max(...appointments.map(a => a.id)) + 1 : 1;
-    const newAppt = {
-      id: apptId,
-      customerId: parseInt(apptData.customerId, 10),
-      customerName: apptData.customerName,
-      staffId: parseInt(apptData.staffId, 10),
-      staffName: apptData.staffName,
-      serviceId: parseInt(apptData.serviceId, 10),
-      serviceName: apptData.serviceName,
-      branchId: parseInt(apptData.branchId || selectedBranchId, 10),
-      date: apptData.date,
-      time: apptData.time,
-      status: apptData.status || 'pending',
-      source: apptData.source || 'walkin',
-      amount: parseFloat(apptData.amount)
-    };
+  const addAppointment = async (apptData) => {
+    try {
+      const response = await fetch('/api/appointments', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(apptData)
+      });
+      if (!response.ok) throw new Error("Failed to add appointment");
+      const newAppt = await response.json();
 
-    setAppointments(prev => [...prev, newAppt]);
+      setAppointments(prev => [...prev, newAppt]);
 
-    // If appointment is booked directly as completed, update customer visits and loyalty points
-    if (newAppt.status === 'completed') {
-      triggerCustomerUpdate(newAppt.customerId, newAppt.amount);
+      // If appointment is booked directly as completed, update customer visits and loyalty points locally
+      if (newAppt.status === 'completed') {
+        const custRes = await fetch('/api/customers').then(r => r.json());
+        setCustomers(custRes);
+      }
+
+      // Lookup customer phone
+      const customer = customers.find(c => c.id === newAppt.customerId);
+      const phone = customer ? customer.phone : '9111111111';
+
+      // Outgoing booking notification
+      await addNotification(
+        newAppt.customerName,
+        phone,
+        `Hi ${newAppt.customerName}, your appointment for ${newAppt.serviceName} with stylist ${newAppt.staffName} on ${newAppt.date} at ${newAppt.time} is successfully booked! Booking source: ${newAppt.source.toUpperCase()}.`,
+        newAppt.source === 'whatsapp' ? 'WhatsApp' : 'SMS'
+      );
+
+      return newAppt;
+    } catch (e) {
+      console.error("Backend addAppointment failed, using fallback:", e);
+      const apptId = appointments.length > 0 ? Math.max(...appointments.map(a => a.id)) + 1 : 1;
+      const newAppt = {
+        id: apptId,
+        customerId: parseInt(apptData.customerId, 10),
+        customerName: apptData.customerName,
+        staffId: parseInt(apptData.staffId, 10),
+        staffName: apptData.staffName,
+        serviceId: parseInt(apptData.serviceId, 10),
+        serviceName: apptData.serviceName,
+        branchId: parseInt(apptData.branchId || selectedBranchId, 10),
+        date: apptData.date,
+        time: apptData.time,
+        status: apptData.status || 'pending',
+        source: apptData.source || 'walkin',
+        amount: parseFloat(apptData.amount)
+      };
+
+      setAppointments(prev => [...prev, newAppt]);
+
+      if (newAppt.status === 'completed') {
+        triggerCustomerUpdate(newAppt.customerId, newAppt.amount);
+      }
+
+      return newAppt;
     }
-
-    // Lookup customer phone
-    const customer = customers.find(c => c.id === newAppt.customerId);
-    const phone = customer ? customer.phone : '9111111111';
-
-    // Outgoing booking notification
-    addNotification(
-      newAppt.customerName,
-      phone,
-      `Hi ${newAppt.customerName}, your appointment for ${newAppt.serviceName} with stylist ${newAppt.staffName} on ${newAppt.date} at ${newAppt.time} is successfully booked! Booking source: ${newAppt.source.toUpperCase()}.`,
-      newAppt.source === 'whatsapp' ? 'WhatsApp' : 'SMS'
-    );
-
-    return newAppt;
   };
 
-  // Internal helper to update customer visits and award loyalty points
+  // Internal helper to update customer visits and award loyalty points (local fallback only)
   const triggerCustomerUpdate = (customerId, billingAmount) => {
     setCustomers(prevCustomers => {
       return prevCustomers.map(cust => {
         if (cust.id === customerId) {
-          // Rule: award loyalty points equal to 10% of total spent
           const earnedPoints = Math.round(billingAmount * 0.1);
           return {
             ...cust,
@@ -654,111 +709,246 @@ export const AppProvider = ({ children }) => {
   };
 
   // Update appointment status (e.g. mark completed, cancel, confirm)
-  const updateAppointmentStatus = (id, newStatus) => {
-    let completedAppt = null;
-    let updatedAppt = null;
+  const updateAppointmentStatus = async (id, newStatus) => {
+    try {
+      const response = await fetch(`/api/appointments/${id}/status`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: newStatus })
+      });
+      if (!response.ok) throw new Error("Failed to update appointment status");
+      const updatedAppt = await response.json();
 
-    setAppointments(prev => prev.map(appt => {
-      if (appt.id === id) {
-        updatedAppt = { ...appt, status: newStatus };
-        // If transitioning to completed, we capture it to award loyalty points
-        if (appt.status !== 'completed' && newStatus === 'completed') {
-          completedAppt = appt;
+      setAppointments(prev => prev.map(appt => appt.id === id ? updatedAppt : appt));
+
+      // Fetch updated customer status if completed
+      const oldAppt = appointments.find(a => a.id === id);
+      if (oldAppt && oldAppt.status !== 'completed' && newStatus === 'completed') {
+        const custRes = await fetch('/api/customers').then(r => r.json());
+        setCustomers(custRes);
+      }
+
+      if (updatedAppt) {
+        const customer = customers.find(c => c.id === updatedAppt.customerId);
+        const phone = customer ? customer.phone : '9111111111';
+        
+        let message = '';
+        if (newStatus === 'confirmed') {
+          message = `Hi ${updatedAppt.customerName}, your booking for ${updatedAppt.serviceName} on ${updatedAppt.date} at ${updatedAppt.time} has been CONFIRMED.`;
+        } else if (newStatus === 'inprogress') {
+          message = `Hi ${updatedAppt.customerName}, you have checked in for ${updatedAppt.serviceName}. Stylist: ${updatedAppt.staffName}. Service is In Progress.`;
+        } else if (newStatus === 'completed') {
+          message = `Thank you for visiting SalonSync, ${updatedAppt.customerName}! Your service for ${updatedAppt.serviceName} is completed. Paid: ₹${updatedAppt.amount}. See you again!`;
         }
-        return updatedAppt;
+
+        if (message) {
+          await addNotification(updatedAppt.customerName, phone, message, 'WhatsApp');
+        }
       }
-      return appt;
-    }));
+    } catch (e) {
+      console.error("Backend updateAppointmentStatus failed, using fallback:", e);
+      let completedAppt = null;
+      setAppointments(prev => prev.map(appt => {
+        if (appt.id === id) {
+          const updated = { ...appt, status: newStatus };
+          if (appt.status !== 'completed' && newStatus === 'completed') {
+            completedAppt = appt;
+          }
+          return updated;
+        }
+        return appt;
+      }));
 
-    if (completedAppt) {
-      triggerCustomerUpdate(completedAppt.customerId, completedAppt.amount);
-    }
-
-    if (updatedAppt) {
-      const customer = customers.find(c => c.id === updatedAppt.customerId);
-      const phone = customer ? customer.phone : '9111111111';
-      
-      let message = '';
-      if (newStatus === 'confirmed') {
-        message = `Hi ${updatedAppt.customerName}, your booking for ${updatedAppt.serviceName} on ${updatedAppt.date} at ${updatedAppt.time} has been CONFIRMED.`;
-      } else if (newStatus === 'inprogress') {
-        message = `Hi ${updatedAppt.customerName}, you have checked in for ${updatedAppt.serviceName}. Stylist: ${updatedAppt.staffName}. Service is In Progress.`;
-      } else if (newStatus === 'completed') {
-        message = `Thank you for visiting SalonSync, ${updatedAppt.customerName}! Your service for ${updatedAppt.serviceName} is completed. Paid: ₹${updatedAppt.amount}. See you again!`;
-      }
-
-      if (message) {
-        addNotification(updatedAppt.customerName, phone, message, 'WhatsApp');
+      if (completedAppt) {
+        triggerCustomerUpdate(completedAppt.customerId, completedAppt.amount);
       }
     }
   };
 
-  // Update inventory item quantity
-  const updateInventoryQuantity = (id, newQuantity) => {
-    setInventory(prev => prev.map(item => {
-      if (item.id === id) {
-        const updatedItem = { ...item, quantity: Math.max(0, newQuantity) };
-        
-        // Low stock notification trigger
-        if (updatedItem.quantity < updatedItem.minStock) {
-          addNotification(
-            'System Inventory Alert',
-            'Staff Roster',
-            `Low Stock Warning: "${updatedItem.name}" has only ${updatedItem.quantity} ${updatedItem.unit} remaining (min threshold: ${updatedItem.minStock}). Please restock!`,
-            'SMS'
-          );
-        }
-        return updatedItem;
+  // Update appointment details (e.g. status, amount, staff, date, time)
+  const updateAppointmentDetails = async (id, updatedDetails) => {
+    try {
+      const response = await fetch(`/api/appointments/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedDetails)
+      });
+      if (!response.ok) throw new Error("Failed to update appointment details");
+      const updatedAppt = await response.json();
+
+      setAppointments(prev => prev.map(appt => appt.id === id ? updatedAppt : appt));
+
+      // Fetch updated customer status if completed
+      const oldAppt = appointments.find(a => a.id === id);
+      if (oldAppt && oldAppt.status !== 'completed' && updatedDetails.status === 'completed') {
+        const custRes = await fetch('/api/customers').then(r => r.json());
+        setCustomers(custRes);
       }
-      return item;
-    }));
+
+      if (updatedAppt && updatedDetails.status === 'completed') {
+        const customer = customers.find(c => c.id === updatedAppt.customerId);
+        const phone = customer ? customer.phone : '9111111111';
+        const message = `Thank you for visiting SalonSync, ${updatedAppt.customerName}! Your service for ${updatedAppt.serviceName} is completed. Paid: ₹${updatedAppt.amount}. See you again!`;
+        await addNotification(updatedAppt.customerName, phone, message, 'WhatsApp');
+      }
+      return updatedAppt;
+    } catch (e) {
+      console.error("Backend updateAppointmentDetails failed, using fallback:", e);
+      let completedAppt = null;
+      setAppointments(prev => prev.map(appt => {
+        if (appt.id === id) {
+          const updated = {
+            ...appt,
+            status: updatedDetails.status !== undefined ? updatedDetails.status : appt.status,
+            amount: updatedDetails.amount !== undefined ? parseFloat(updatedDetails.amount) : appt.amount,
+            staffId: updatedDetails.staffId !== undefined ? parseInt(updatedDetails.staffId, 10) : appt.staffId,
+            staffName: updatedDetails.staffName !== undefined ? updatedDetails.staffName : appt.staffName,
+            date: updatedDetails.date !== undefined ? updatedDetails.date : appt.date,
+            time: updatedDetails.time !== undefined ? updatedDetails.time : appt.time,
+            customerId: updatedDetails.customerId !== undefined ? parseInt(updatedDetails.customerId, 10) : appt.customerId,
+            customerName: updatedDetails.customerName !== undefined ? updatedDetails.customerName : appt.customerName,
+            serviceId: updatedDetails.serviceId !== undefined ? parseInt(updatedDetails.serviceId, 10) : appt.serviceId,
+            serviceName: updatedDetails.serviceName !== undefined ? updatedDetails.serviceName : appt.serviceName
+          };
+          if (appt.status !== 'completed' && updatedDetails.status === 'completed') {
+            completedAppt = updated;
+          }
+          return updated;
+        }
+        return appt;
+      }));
+
+      if (completedAppt) {
+        triggerCustomerUpdate(completedAppt.customerId, completedAppt.amount);
+      }
+    }
+  };
+
+
+  // Update inventory item quantity
+  const updateInventoryQuantity = async (id, newQuantity) => {
+    try {
+      const response = await fetch(`/api/inventory/${id}/quantity`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ quantity: newQuantity })
+      });
+      if (!response.ok) throw new Error("Failed to update inventory quantity");
+      const updatedItem = await response.json();
+
+      setInventory(prev => prev.map(item => item.id === id ? updatedItem : item));
+      
+      // Low stock notification trigger
+      if (updatedItem.quantity < updatedItem.minStock) {
+        await addNotification(
+          'System Inventory Alert',
+          'Staff Roster',
+          `Low Stock Warning: "${updatedItem.name}" has only ${updatedItem.quantity} ${updatedItem.unit} remaining (min threshold: ${updatedItem.minStock}). Please restock!`,
+          'SMS'
+        );
+      }
+    } catch (e) {
+      console.error("Backend updateInventoryQuantity failed, using fallback:", e);
+      setInventory(prev => prev.map(item => {
+        if (item.id === id) {
+          const updatedItem = { ...item, quantity: Math.max(0, newQuantity) };
+          if (updatedItem.quantity < updatedItem.minStock) {
+            addNotification(
+              'System Inventory Alert',
+              'Staff Roster',
+              `Low Stock Warning: "${updatedItem.name}" has only ${updatedItem.quantity} ${updatedItem.unit} remaining (min threshold: ${updatedItem.minStock}). Please restock!`,
+              'SMS'
+            );
+          }
+          return updatedItem;
+        }
+        return item;
+      }));
+    }
   };
 
   // Add new inventory item
-  const addInventoryItem = (itemData) => {
-    const newItem = {
-      id: inventory.length > 0 ? Math.max(...inventory.map(i => i.id)) + 1 : 1,
-      name: itemData.name,
-      category: itemData.category || 'Supplies',
-      branchId: parseInt(itemData.branchId || selectedBranchId, 10),
-      quantity: parseInt(itemData.quantity, 10) || 0,
-      minStock: parseInt(itemData.minStock, 10) || 5,
-      unit: itemData.unit || 'pieces',
-      price: parseFloat(itemData.price) || 0
-    };
-    setInventory(prev => [...prev, newItem]);
-    return newItem;
+  const addInventoryItem = async (itemData) => {
+    try {
+      const response = await fetch('/api/inventory', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(itemData)
+      });
+      if (!response.ok) throw new Error("Failed to add inventory item");
+      const newItem = await response.json();
+      setInventory(prev => [...prev, newItem]);
+      return newItem;
+    } catch (e) {
+      console.error(e);
+      const newItem = {
+        id: inventory.length > 0 ? Math.max(...inventory.map(i => i.id)) + 1 : 1,
+        name: itemData.name,
+        category: itemData.category || 'Supplies',
+        branchId: parseInt(itemData.branchId || selectedBranchId, 10),
+        quantity: parseInt(itemData.quantity, 10) || 0,
+        minStock: parseInt(itemData.minStock, 10) || 5,
+        unit: itemData.unit || 'pieces',
+        price: parseFloat(itemData.price) || 0
+      };
+      setInventory(prev => [...prev, newItem]);
+      return newItem;
+    }
   };
 
   // Update inventory item details
-  const updateInventoryItem = (id, updatedData) => {
-    setInventory(prev => prev.map(item => {
-      if (item.id === id) {
-        return {
-          ...item,
-          name: updatedData.name,
-          category: updatedData.category || 'Supplies',
-          quantity: parseInt(updatedData.quantity, 10) || 0,
-          minStock: parseInt(updatedData.minStock, 10) || 5,
-          unit: updatedData.unit || 'pieces',
-          price: parseFloat(updatedData.price) || 0
-        };
-      }
-      return item;
-    }));
+  const updateInventoryItem = async (id, updatedData) => {
+    try {
+      const response = await fetch(`/api/inventory/${id}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(updatedData)
+      });
+      if (!response.ok) throw new Error("Failed to update inventory item");
+      const updatedItem = await response.json();
+      setInventory(prev => prev.map(item => item.id === id ? updatedItem : item));
+    } catch (e) {
+      console.error(e);
+      setInventory(prev => prev.map(item => {
+        if (item.id === id) {
+          return {
+            ...item,
+            name: updatedData.name,
+            category: updatedData.category || 'Supplies',
+            quantity: parseInt(updatedData.quantity, 10) || 0,
+            minStock: parseInt(updatedData.minStock, 10) || 5,
+            unit: updatedData.unit || 'pieces',
+            price: parseFloat(updatedData.price) || 0
+          };
+        }
+        return item;
+      }));
+    }
   };
 
-  // Redeem customer loyalty points (updates points state)
-  const redeemCustomerPoints = (customerId, pointsToRedeem) => {
-    setCustomers(prev => prev.map(cust => {
-      if (cust.id === customerId) {
-        return {
-          ...cust,
-          loyaltyPoints: Math.max(0, cust.loyaltyPoints - pointsToRedeem)
-        };
-      }
-      return cust;
-    }));
+  // Redeem customer loyalty points
+  const redeemCustomerPoints = async (customerId, pointsToRedeem) => {
+    try {
+      const response = await fetch(`/api/customers/${customerId}/redeem`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ pointsToRedeem })
+      });
+      if (!response.ok) throw new Error("Failed to redeem customer points");
+      const updatedCustomer = await response.json();
+      setCustomers(prev => prev.map(cust => cust.id === customerId ? updatedCustomer : cust));
+    } catch (e) {
+      console.error(e);
+      setCustomers(prev => prev.map(cust => {
+        if (cust.id === customerId) {
+          return {
+            ...cust,
+            loyaltyPoints: Math.max(0, cust.loyaltyPoints - pointsToRedeem)
+          };
+        }
+        return cust;
+      }));
+    }
   };
 
   return (
@@ -775,6 +965,7 @@ export const AppProvider = ({ children }) => {
       addStaff,
       addAppointment,
       updateAppointmentStatus,
+      updateAppointmentDetails,
       updateInventoryQuantity,
       addInventoryItem,
       updateInventoryItem,
@@ -787,6 +978,8 @@ export const AppProvider = ({ children }) => {
       setWaMessages,
       webhookLogs,
       setWebhookLogs,
+      currentDate,
+      setCurrentDate,
       parsedData,
       setParsedData,
       isLiveStreaming,
@@ -796,7 +989,18 @@ export const AppProvider = ({ children }) => {
       parseMessageNLP,
       toasts,
       removeToast,
-      markNotificationsAsRead
+      markNotificationsAsRead,
+      saveWebhookLog,
+      addWaMessage,
+      updateWaMessageStatus,
+      wipeLogs,
+      updateSettings,
+      settings,
+      pendingPOSPrefill,
+      setPendingPOSPrefill,
+      highlightCustomerId,
+      setHighlightCustomerId,
+      fetchDatabaseState
     }}>
       {children}
     </AppContext.Provider>
