@@ -34,15 +34,71 @@ export const AppProvider = ({ children }) => {
     }
   });
 
-  const [appointments, setAppointments] = useState([]);
-  const [inventory, setInventory] = useState([]);
-  const [customers, setCustomers] = useState([]);
-  const [staff, setStaff] = useState([]);
-  const [notificationsLog, setNotificationsLog] = useState([]);
-  const [waMessages, setWaMessages] = useState([]);
-  const [webhookLogs, setWebhookLogs] = useState([]);
+  const [appointments, setAppointments] = useState(() => {
+    try {
+      const saved = localStorage.getItem('salonsync_appointments');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  const [inventory, setInventory] = useState(() => {
+    try {
+      const saved = localStorage.getItem('salonsync_inventory');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  const [customers, setCustomers] = useState(() => {
+    try {
+      const saved = localStorage.getItem('salonsync_customers');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  const [staff, setStaff] = useState(() => {
+    try {
+      const saved = localStorage.getItem('salonsync_staff');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  const [notificationsLog, setNotificationsLog] = useState(() => {
+    try {
+      const saved = localStorage.getItem('salonsync_notifications');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  const [waMessages, setWaMessages] = useState(() => {
+    try {
+      const saved = localStorage.getItem('salonsync_wa_messages');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
+  const [webhookLogs, setWebhookLogs] = useState(() => {
+    try {
+      const saved = localStorage.getItem('salonsync_webhook_logs');
+      return saved ? JSON.parse(saved) : [];
+    } catch (e) {
+      return [];
+    }
+  });
   const [parsedData, setParsedData] = useState(null);
-  const [settings, setSettings] = useState({ discord_webhook_url: '' });
+  const [settings, setSettings] = useState(() => {
+    try {
+      const saved = localStorage.getItem('salonsync_settings');
+      return saved ? JSON.parse(saved) : { discord_webhook_url: '' };
+    } catch (e) {
+      return { discord_webhook_url: '' };
+    }
+  });
   const [currentDate, setCurrentDate] = useState(() => {
     try {
       const saved = localStorage.getItem('salon_currentDate');
@@ -102,28 +158,96 @@ export const AppProvider = ({ children }) => {
       setNotificationsLog(notifs);
       setWebhookLogs(logs.map(l => l.payload));
       setSettings(setts);
+
+      localStorage.setItem('salonsync_appointments', JSON.stringify(appts));
+      localStorage.setItem('salonsync_inventory', JSON.stringify(inv));
+      localStorage.setItem('salonsync_customers', JSON.stringify(custs));
+      localStorage.setItem('salonsync_staff', JSON.stringify(stf));
+      localStorage.setItem('salonsync_wa_messages', JSON.stringify(msgs));
+      localStorage.setItem('salonsync_notifications', JSON.stringify(notifs));
+      localStorage.setItem('salonsync_webhook_logs', JSON.stringify(logs.map(l => l.payload)));
+      localStorage.setItem('salonsync_settings', JSON.stringify(setts));
     } catch (e) {
       console.error("Failed to connect to backend server. Retaining current/fallback states.", e);
-      // Seed mock values only if currently empty
-      setAppointments(prev => prev.length === 0 ? mockAppointments : prev);
-      setInventory(prev => prev.length === 0 ? mockInventory : prev);
-      setCustomers(prev => prev.length === 0 ? mockCustomers : prev);
-      setStaff(prev => prev.length === 0 ? mockStaff : prev);
-      setNotificationsLog(prev => prev.length === 0 ? mockNotifications : prev);
-      setWaMessages(prev => prev.length === 0 ? [
-        { 
-          id: 'msg-seed-1',
-          sender: 'client', 
-          text: 'Can I schedule a Men Haircut with Ravi Kumar today at 3:30 PM? - Arjun Singh', 
-          time: '11:15',
-          channel: 'whatsapp',
-          status: 'approved',
-          clientName: 'Arjun Singh',
-          phone: '9222222222',
-          service: { id: 1, name: "Men's Haircut", price: 350 },
-          stylist: { id: 1, name: 'Ravi Kumar' }
-        }
-      ] : prev);
+      
+      const savedAppts = localStorage.getItem('salonsync_appointments');
+      const savedInv = localStorage.getItem('salonsync_inventory');
+      const savedCusts = localStorage.getItem('salonsync_customers');
+      const savedStaff = localStorage.getItem('salonsync_staff');
+      const savedMsgs = localStorage.getItem('salonsync_wa_messages');
+      const savedNotifs = localStorage.getItem('salonsync_notifications');
+      const savedLogs = localStorage.getItem('salonsync_webhook_logs');
+      const savedSetts = localStorage.getItem('salonsync_settings');
+
+      if (savedAppts) {
+        setAppointments(JSON.parse(savedAppts));
+      } else {
+        setAppointments(mockAppointments);
+        localStorage.setItem('salonsync_appointments', JSON.stringify(mockAppointments));
+      }
+
+      if (savedInv) {
+        setInventory(JSON.parse(savedInv));
+      } else {
+        setInventory(mockInventory);
+        localStorage.setItem('salonsync_inventory', JSON.stringify(mockInventory));
+      }
+
+      if (savedCusts) {
+        setCustomers(JSON.parse(savedCusts));
+      } else {
+        setCustomers(mockCustomers);
+        localStorage.setItem('salonsync_customers', JSON.stringify(mockCustomers));
+      }
+
+      if (savedStaff) {
+        setStaff(JSON.parse(savedStaff));
+      } else {
+        setStaff(mockStaff);
+        localStorage.setItem('salonsync_staff', JSON.stringify(mockStaff));
+      }
+
+      if (savedNotifs) {
+        setNotificationsLog(JSON.parse(savedNotifs));
+      } else {
+        setNotificationsLog(mockNotifications);
+        localStorage.setItem('salonsync_notifications', JSON.stringify(mockNotifications));
+      }
+
+      if (savedMsgs) {
+        setWaMessages(JSON.parse(savedMsgs));
+      } else {
+        const initialMsgs = [
+          { 
+            id: 'msg-seed-1',
+            sender: 'client', 
+            text: 'Can I schedule a Men Haircut with Ravi Kumar today at 3:30 PM? - Arjun Singh', 
+            time: '11:15',
+            channel: 'whatsapp',
+            status: 'approved',
+            clientName: 'Arjun Singh',
+            phone: '9222222222',
+            service: { id: 1, name: "Men's Haircut", price: 350 },
+            stylist: { id: 1, name: 'Ravi Kumar' }
+          }
+        ];
+        setWaMessages(initialMsgs);
+        localStorage.setItem('salonsync_wa_messages', JSON.stringify(initialMsgs));
+      }
+
+      if (savedLogs) {
+        setWebhookLogs(JSON.parse(savedLogs));
+      } else {
+        setWebhookLogs([]);
+        localStorage.setItem('salonsync_webhook_logs', JSON.stringify([]));
+      }
+
+      if (savedSetts) {
+        setSettings(JSON.parse(savedSetts));
+      } else {
+        setSettings({ discord_webhook_url: '' });
+        localStorage.setItem('salonsync_settings', JSON.stringify({ discord_webhook_url: '' }));
+      }
     }
   };
 
@@ -181,14 +305,22 @@ export const AppProvider = ({ children }) => {
       });
       if (!response.ok) throw new Error("Failed to save notification");
       const newNotif = await response.json();
-      setNotificationsLog(prev => [newNotif, ...prev].slice(0, 50));
+      setNotificationsLog(prev => {
+        const updated = [newNotif, ...prev].slice(0, 50);
+        localStorage.setItem('salonsync_notifications', JSON.stringify(updated));
+        return updated;
+      });
     } catch (e) {
       console.error(e);
       const localNotif = {
         id: 'notif-' + Date.now(),
         ...notifData
       };
-      setNotificationsLog(prev => [localNotif, ...prev].slice(0, 50));
+      setNotificationsLog(prev => {
+        const updated = [localNotif, ...prev].slice(0, 50);
+        localStorage.setItem('salonsync_notifications', JSON.stringify(updated));
+        return updated;
+      });
     }
 
     // Trigger toast notification!
@@ -207,7 +339,11 @@ export const AppProvider = ({ children }) => {
 
   const markNotificationsAsRead = async () => {
     try {
-      setNotificationsLog(prev => prev.map(notif => ({ ...notif, unread: false })));
+      setNotificationsLog(prev => {
+        const updated = prev.map(notif => ({ ...notif, unread: false }));
+        localStorage.setItem('salonsync_notifications', JSON.stringify(updated));
+        return updated;
+      });
       await fetch('/api/notifications/read', { method: 'PUT' });
     } catch (e) {
       console.error("Failed to mark notifications as read:", e);
@@ -222,10 +358,18 @@ export const AppProvider = ({ children }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ payload })
       });
-      setWebhookLogs(prev => [payload, ...prev].slice(0, 5));
+      setWebhookLogs(prev => {
+        const updated = [payload, ...prev].slice(0, 5);
+        localStorage.setItem('salonsync_webhook_logs', JSON.stringify(updated));
+        return updated;
+      });
     } catch (e) {
       console.error(e);
-      setWebhookLogs(prev => [payload, ...prev].slice(0, 5));
+      setWebhookLogs(prev => {
+        const updated = [payload, ...prev].slice(0, 5);
+        localStorage.setItem('salonsync_webhook_logs', JSON.stringify(updated));
+        return updated;
+      });
     }
   };
 
@@ -239,10 +383,18 @@ export const AppProvider = ({ children }) => {
       });
       if (!response.ok) throw new Error("Failed to add message");
       const savedMsg = await response.json();
-      setWaMessages(prev => [...prev, savedMsg]);
+      setWaMessages(prev => {
+        const updated = [...prev, savedMsg];
+        localStorage.setItem('salonsync_wa_messages', JSON.stringify(updated));
+        return updated;
+      });
     } catch (e) {
       console.error(e);
-      setWaMessages(prev => [...prev, msg]);
+      setWaMessages(prev => {
+        const updated = [...prev, msg];
+        localStorage.setItem('salonsync_wa_messages', JSON.stringify(updated));
+        return updated;
+      });
     }
   };
 
@@ -256,10 +408,18 @@ export const AppProvider = ({ children }) => {
       });
       if (!response.ok) throw new Error("Failed to update message status");
       const updated = await response.json();
-      setWaMessages(prev => prev.map(m => m.id === id ? updated : m));
+      setWaMessages(prev => {
+        const updatedList = prev.map(m => m.id === id ? updated : m);
+        localStorage.setItem('salonsync_wa_messages', JSON.stringify(updatedList));
+        return updatedList;
+      });
     } catch (e) {
       console.error(e);
-      setWaMessages(prev => prev.map(m => m.id === id ? { ...m, status } : m));
+      setWaMessages(prev => {
+        const updatedList = prev.map(m => m.id === id ? { ...m, status } : m);
+        localStorage.setItem('salonsync_wa_messages', JSON.stringify(updatedList));
+        return updatedList;
+      });
     }
   };
 
@@ -269,10 +429,14 @@ export const AppProvider = ({ children }) => {
       await fetch('/api/wipe-logs', { method: 'POST' });
       setWaMessages([]);
       setWebhookLogs([]);
+      localStorage.setItem('salonsync_wa_messages', JSON.stringify([]));
+      localStorage.setItem('salonsync_webhook_logs', JSON.stringify([]));
     } catch (e) {
       console.error(e);
       setWaMessages([]);
       setWebhookLogs([]);
+      localStorage.setItem('salonsync_wa_messages', JSON.stringify([]));
+      localStorage.setItem('salonsync_webhook_logs', JSON.stringify([]));
     }
   };
 
@@ -284,11 +448,19 @@ export const AppProvider = ({ children }) => {
         body: JSON.stringify(newSettings)
       });
       if (!response.ok) throw new Error("Failed to save settings");
-      setSettings(prev => ({ ...prev, ...newSettings }));
+      setSettings(prev => {
+        const updated = { ...prev, ...newSettings };
+        localStorage.setItem('salonsync_settings', JSON.stringify(updated));
+        return updated;
+      });
       return true;
     } catch (e) {
       console.error("Failed to update settings:", e);
-      setSettings(prev => ({ ...prev, ...newSettings }));
+      setSettings(prev => {
+        const updated = { ...prev, ...newSettings };
+        localStorage.setItem('salonsync_settings', JSON.stringify(updated));
+        return updated;
+      });
       return false;
     }
   };
@@ -541,7 +713,9 @@ export const AppProvider = ({ children }) => {
       setCustomers(prev => {
         // Prevent duplicate local additions if already fetched
         if (prev.some(c => c.phone === newCustomer.phone)) return prev;
-        return [...prev, newCustomer];
+        const updated = [...prev, newCustomer];
+        localStorage.setItem('salonsync_customers', JSON.stringify(updated));
+        return updated;
       });
 
       // Send customer welcome notification
@@ -565,7 +739,11 @@ export const AppProvider = ({ children }) => {
         preferredBranch: customerData.preferredBranch || selectedBranchId,
         membershipId: customerData.membershipId || null
       };
-      setCustomers(prev => [...prev, newCustomer]);
+      setCustomers(prev => {
+        const updated = [...prev, newCustomer];
+        localStorage.setItem('salonsync_customers', JSON.stringify(updated));
+        return updated;
+      });
       return newCustomer;
     }
   };
@@ -581,7 +759,11 @@ export const AppProvider = ({ children }) => {
       if (!response.ok) throw new Error("Failed to assign membership");
       const updatedCustomer = await response.json();
 
-      setCustomers(prev => prev.map(cust => cust.id === customerId ? updatedCustomer : cust));
+      setCustomers(prev => {
+        const updated = prev.map(cust => cust.id === customerId ? updatedCustomer : cust);
+        localStorage.setItem('salonsync_customers', JSON.stringify(updated));
+        return updated;
+      });
 
       const plan = membershipPlans.find(p => p.id === planId);
       if (updatedCustomer && plan) {
@@ -594,12 +776,16 @@ export const AppProvider = ({ children }) => {
       }
     } catch (e) {
       console.error(e);
-      setCustomers(prev => prev.map(cust => {
-        if (cust.id === customerId) {
-          return { ...cust, membershipId: planId };
-        }
-        return cust;
-      }));
+      setCustomers(prev => {
+        const updated = prev.map(cust => {
+          if (cust.id === customerId) {
+            return { ...cust, membershipId: planId };
+          }
+          return cust;
+        });
+        localStorage.setItem('salonsync_customers', JSON.stringify(updated));
+        return updated;
+      });
     }
   };
 
@@ -613,7 +799,11 @@ export const AppProvider = ({ children }) => {
       });
       if (!response.ok) throw new Error("Failed to add staff");
       const newMember = await response.json();
-      setStaff(prev => [...prev, newMember]);
+      setStaff(prev => {
+        const updated = [...prev, newMember];
+        localStorage.setItem('salonsync_staff', JSON.stringify(updated));
+        return updated;
+      });
       return newMember;
     } catch (e) {
       console.error(e);
@@ -625,7 +815,11 @@ export const AppProvider = ({ children }) => {
         commissionPct: parseInt(staffData.commissionPct, 10) || 10,
         phone: staffData.phone || ''
       };
-      setStaff(prev => [...prev, newMember]);
+      setStaff(prev => {
+        const updated = [...prev, newMember];
+        localStorage.setItem('salonsync_staff', JSON.stringify(updated));
+        return updated;
+      });
       return newMember;
     }
   };
@@ -641,12 +835,17 @@ export const AppProvider = ({ children }) => {
       if (!response.ok) throw new Error("Failed to add appointment");
       const newAppt = await response.json();
 
-      setAppointments(prev => [...prev, newAppt]);
+      setAppointments(prev => {
+        const updated = [...prev, newAppt];
+        localStorage.setItem('salonsync_appointments', JSON.stringify(updated));
+        return updated;
+      });
 
       // If appointment is booked directly as completed, update customer visits and loyalty points locally
       if (newAppt.status === 'completed') {
         const custRes = await fetch('/api/customers').then(r => r.json());
         setCustomers(custRes);
+        localStorage.setItem('salonsync_customers', JSON.stringify(custRes));
       }
 
       // Lookup customer phone
@@ -681,7 +880,11 @@ export const AppProvider = ({ children }) => {
         amount: parseFloat(apptData.amount)
       };
 
-      setAppointments(prev => [...prev, newAppt]);
+      setAppointments(prev => {
+        const updated = [...prev, newAppt];
+        localStorage.setItem('salonsync_appointments', JSON.stringify(updated));
+        return updated;
+      });
 
       if (newAppt.status === 'completed') {
         triggerCustomerUpdate(newAppt.customerId, newAppt.amount);
@@ -694,7 +897,7 @@ export const AppProvider = ({ children }) => {
   // Internal helper to update customer visits and award loyalty points (local fallback only)
   const triggerCustomerUpdate = (customerId, billingAmount) => {
     setCustomers(prevCustomers => {
-      return prevCustomers.map(cust => {
+      const updated = prevCustomers.map(cust => {
         if (cust.id === customerId) {
           const earnedPoints = Math.round(billingAmount * 0.1);
           return {
@@ -705,6 +908,8 @@ export const AppProvider = ({ children }) => {
         }
         return cust;
       });
+      localStorage.setItem('salonsync_customers', JSON.stringify(updated));
+      return updated;
     });
   };
 
@@ -719,13 +924,18 @@ export const AppProvider = ({ children }) => {
       if (!response.ok) throw new Error("Failed to update appointment status");
       const updatedAppt = await response.json();
 
-      setAppointments(prev => prev.map(appt => appt.id === id ? updatedAppt : appt));
+      setAppointments(prev => {
+        const updated = prev.map(appt => appt.id === id ? updatedAppt : appt);
+        localStorage.setItem('salonsync_appointments', JSON.stringify(updated));
+        return updated;
+      });
 
       // Fetch updated customer status if completed
       const oldAppt = appointments.find(a => a.id === id);
       if (oldAppt && oldAppt.status !== 'completed' && newStatus === 'completed') {
         const custRes = await fetch('/api/customers').then(r => r.json());
         setCustomers(custRes);
+        localStorage.setItem('salonsync_customers', JSON.stringify(custRes));
       }
 
       if (updatedAppt) {
@@ -748,16 +958,20 @@ export const AppProvider = ({ children }) => {
     } catch (e) {
       console.error("Backend updateAppointmentStatus failed, using fallback:", e);
       let completedAppt = null;
-      setAppointments(prev => prev.map(appt => {
-        if (appt.id === id) {
-          const updated = { ...appt, status: newStatus };
-          if (appt.status !== 'completed' && newStatus === 'completed') {
-            completedAppt = appt;
+      setAppointments(prev => {
+        const updated = prev.map(appt => {
+          if (appt.id === id) {
+            const updatedAppt = { ...appt, status: newStatus };
+            if (appt.status !== 'completed' && newStatus === 'completed') {
+              completedAppt = updatedAppt;
+            }
+            return updatedAppt;
           }
-          return updated;
-        }
-        return appt;
-      }));
+          return appt;
+        });
+        localStorage.setItem('salonsync_appointments', JSON.stringify(updated));
+        return updated;
+      });
 
       if (completedAppt) {
         triggerCustomerUpdate(completedAppt.customerId, completedAppt.amount);
@@ -776,13 +990,18 @@ export const AppProvider = ({ children }) => {
       if (!response.ok) throw new Error("Failed to update appointment details");
       const updatedAppt = await response.json();
 
-      setAppointments(prev => prev.map(appt => appt.id === id ? updatedAppt : appt));
+      setAppointments(prev => {
+        const updated = prev.map(appt => appt.id === id ? updatedAppt : appt);
+        localStorage.setItem('salonsync_appointments', JSON.stringify(updated));
+        return updated;
+      });
 
       // Fetch updated customer status if completed
       const oldAppt = appointments.find(a => a.id === id);
       if (oldAppt && oldAppt.status !== 'completed' && updatedDetails.status === 'completed') {
         const custRes = await fetch('/api/customers').then(r => r.json());
         setCustomers(custRes);
+        localStorage.setItem('salonsync_customers', JSON.stringify(custRes));
       }
 
       if (updatedAppt && updatedDetails.status === 'completed') {
@@ -795,28 +1014,32 @@ export const AppProvider = ({ children }) => {
     } catch (e) {
       console.error("Backend updateAppointmentDetails failed, using fallback:", e);
       let completedAppt = null;
-      setAppointments(prev => prev.map(appt => {
-        if (appt.id === id) {
-          const updated = {
-            ...appt,
-            status: updatedDetails.status !== undefined ? updatedDetails.status : appt.status,
-            amount: updatedDetails.amount !== undefined ? parseFloat(updatedDetails.amount) : appt.amount,
-            staffId: updatedDetails.staffId !== undefined ? parseInt(updatedDetails.staffId, 10) : appt.staffId,
-            staffName: updatedDetails.staffName !== undefined ? updatedDetails.staffName : appt.staffName,
-            date: updatedDetails.date !== undefined ? updatedDetails.date : appt.date,
-            time: updatedDetails.time !== undefined ? updatedDetails.time : appt.time,
-            customerId: updatedDetails.customerId !== undefined ? parseInt(updatedDetails.customerId, 10) : appt.customerId,
-            customerName: updatedDetails.customerName !== undefined ? updatedDetails.customerName : appt.customerName,
-            serviceId: updatedDetails.serviceId !== undefined ? parseInt(updatedDetails.serviceId, 10) : appt.serviceId,
-            serviceName: updatedDetails.serviceName !== undefined ? updatedDetails.serviceName : appt.serviceName
-          };
-          if (appt.status !== 'completed' && updatedDetails.status === 'completed') {
-            completedAppt = updated;
+      setAppointments(prev => {
+        const updated = prev.map(appt => {
+          if (appt.id === id) {
+            const updatedAppt = {
+              ...appt,
+              status: updatedDetails.status !== undefined ? updatedDetails.status : appt.status,
+              amount: updatedDetails.amount !== undefined ? parseFloat(updatedDetails.amount) : appt.amount,
+              staffId: updatedDetails.staffId !== undefined ? parseInt(updatedDetails.staffId, 10) : appt.staffId,
+              staffName: updatedDetails.staffName !== undefined ? updatedDetails.staffName : appt.staffName,
+              date: updatedDetails.date !== undefined ? updatedDetails.date : appt.date,
+              time: updatedDetails.time !== undefined ? updatedDetails.time : appt.time,
+              customerId: updatedDetails.customerId !== undefined ? parseInt(updatedDetails.customerId, 10) : appt.customerId,
+              customerName: updatedDetails.customerName !== undefined ? updatedDetails.customerName : appt.customerName,
+              serviceId: updatedDetails.serviceId !== undefined ? parseInt(updatedDetails.serviceId, 10) : appt.serviceId,
+              serviceName: updatedDetails.serviceName !== undefined ? updatedDetails.serviceName : appt.serviceName
+            };
+            if (appt.status !== 'completed' && updatedDetails.status === 'completed') {
+              completedAppt = updatedAppt;
+            }
+            return updatedAppt;
           }
-          return updated;
-        }
-        return appt;
-      }));
+          return appt;
+        });
+        localStorage.setItem('salonsync_appointments', JSON.stringify(updated));
+        return updated;
+      });
 
       if (completedAppt) {
         triggerCustomerUpdate(completedAppt.customerId, completedAppt.amount);
@@ -837,7 +1060,11 @@ export const AppProvider = ({ children }) => {
       if (!response.ok) throw new Error("Failed to update inventory quantity");
       const updatedItem = await response.json();
 
-      setInventory(prev => prev.map(item => item.id === id ? updatedItem : item));
+      setInventory(prev => {
+        const updated = prev.map(item => item.id === id ? updatedItem : item);
+        localStorage.setItem('salonsync_inventory', JSON.stringify(updated));
+        return updated;
+      });
       
       // Low stock notification trigger
       if (Number(updatedItem.quantity) < Number(updatedItem.minStock)) {
@@ -850,12 +1077,16 @@ export const AppProvider = ({ children }) => {
       }
     } catch (e) {
       console.error("Backend updateInventoryQuantity failed, using fallback:", e);
-      setInventory(prev => prev.map(item => {
-        if (item.id === id) {
-          return { ...item, quantity: numericQuantity };
-        }
-        return item;
-      }));
+      setInventory(prev => {
+        const updated = prev.map(item => {
+          if (item.id === id) {
+            return { ...item, quantity: numericQuantity };
+          }
+          return item;
+        });
+        localStorage.setItem('salonsync_inventory', JSON.stringify(updated));
+        return updated;
+      });
 
       // Trigger low stock warning notification outside the setInventory state updater callback
       const targetItem = inventory.find(item => item.id === id);
@@ -880,7 +1111,11 @@ export const AppProvider = ({ children }) => {
       });
       if (!response.ok) throw new Error("Failed to add inventory item");
       const newItem = await response.json();
-      setInventory(prev => [...prev, newItem]);
+      setInventory(prev => {
+        const updated = [...prev, newItem];
+        localStorage.setItem('salonsync_inventory', JSON.stringify(updated));
+        return updated;
+      });
       return newItem;
     } catch (e) {
       console.error(e);
@@ -894,7 +1129,11 @@ export const AppProvider = ({ children }) => {
         unit: itemData.unit || 'pieces',
         price: parseFloat(itemData.price) || 0
       };
-      setInventory(prev => [...prev, newItem]);
+      setInventory(prev => {
+        const updated = [...prev, newItem];
+        localStorage.setItem('salonsync_inventory', JSON.stringify(updated));
+        return updated;
+      });
       return newItem;
     }
   };
@@ -909,23 +1148,31 @@ export const AppProvider = ({ children }) => {
       });
       if (!response.ok) throw new Error("Failed to update inventory item");
       const updatedItem = await response.json();
-      setInventory(prev => prev.map(item => item.id === id ? updatedItem : item));
+      setInventory(prev => {
+        const updated = prev.map(item => item.id === id ? updatedItem : item);
+        localStorage.setItem('salonsync_inventory', JSON.stringify(updated));
+        return updated;
+      });
     } catch (e) {
       console.error(e);
-      setInventory(prev => prev.map(item => {
-        if (item.id === id) {
-          return {
-            ...item,
-            name: updatedData.name,
-            category: updatedData.category || 'Supplies',
-            quantity: parseInt(updatedData.quantity, 10) || 0,
-            minStock: parseInt(updatedData.minStock, 10) || 5,
-            unit: updatedData.unit || 'pieces',
-            price: parseFloat(updatedData.price) || 0
-          };
-        }
-        return item;
-      }));
+      setInventory(prev => {
+        const updated = prev.map(item => {
+          if (item.id === id) {
+            return {
+              ...item,
+              name: updatedData.name,
+              category: updatedData.category || 'Supplies',
+              quantity: parseInt(updatedData.quantity, 10) || 0,
+              minStock: parseInt(updatedData.minStock, 10) || 5,
+              unit: updatedData.unit || 'pieces',
+              price: parseFloat(updatedData.price) || 0
+            };
+          }
+          return item;
+        });
+        localStorage.setItem('salonsync_inventory', JSON.stringify(updated));
+        return updated;
+      });
     }
   };
 
@@ -939,18 +1186,26 @@ export const AppProvider = ({ children }) => {
       });
       if (!response.ok) throw new Error("Failed to redeem customer points");
       const updatedCustomer = await response.json();
-      setCustomers(prev => prev.map(cust => cust.id === customerId ? updatedCustomer : cust));
+      setCustomers(prev => {
+        const updated = prev.map(cust => cust.id === customerId ? updatedCustomer : cust);
+        localStorage.setItem('salonsync_customers', JSON.stringify(updated));
+        return updated;
+      });
     } catch (e) {
       console.error(e);
-      setCustomers(prev => prev.map(cust => {
-        if (cust.id === customerId) {
-          return {
-            ...cust,
-            loyaltyPoints: Math.max(0, cust.loyaltyPoints - pointsToRedeem)
-          };
-        }
-        return cust;
-      }));
+      setCustomers(prev => {
+        const updated = prev.map(cust => {
+          if (cust.id === customerId) {
+            return {
+              ...cust,
+              loyaltyPoints: Math.max(0, cust.loyaltyPoints - pointsToRedeem)
+            };
+          }
+          return cust;
+        });
+        localStorage.setItem('salonsync_customers', JSON.stringify(updated));
+        return updated;
+      });
     }
   };
 
