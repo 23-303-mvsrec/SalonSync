@@ -391,8 +391,8 @@ const Inventory = () => {
                       <td className="py-4 px-6">
                         <div className="flex items-center justify-center space-x-2">
                           <button
-                            onClick={() => updateInventoryQuantity(item.id, item.quantity - 1)}
-                            disabled={item.quantity <= 0}
+                            onClick={() => updateInventoryQuantity(item.id, Number(item.quantity) - 1)}
+                            disabled={Number(item.quantity) <= 0}
                             className="h-7 w-7 bg-white hover:bg-rose-50 border border-slate-200 text-rose-600 disabled:opacity-40 disabled:hover:bg-white rounded-lg flex items-center justify-center transition-colors shadow-sm focus:outline-none"
                             title="Decrease quantity by 1"
                           >
@@ -400,7 +400,7 @@ const Inventory = () => {
                           </button>
                           
                           <button
-                            onClick={() => updateInventoryQuantity(item.id, item.quantity + 1)}
+                            onClick={() => updateInventoryQuantity(item.id, Number(item.quantity) + 1)}
                             className="h-7 w-7 bg-white hover:bg-emerald-50 border border-slate-200 text-emerald-650 rounded-lg flex items-center justify-center transition-colors shadow-sm focus:outline-none"
                             title="Increase quantity by 1"
                           >

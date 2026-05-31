@@ -827,11 +827,12 @@ export const AppProvider = ({ children }) => {
 
   // Update inventory item quantity
   const updateInventoryQuantity = async (id, newQuantity) => {
+    const numericQuantity = Math.max(0, Number(newQuantity));
     try {
       const response = await fetch(`/api/inventory/${id}/quantity`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ quantity: newQuantity })
+        body: JSON.stringify({ quantity: numericQuantity })
       });
       if (!response.ok) throw new Error("Failed to update inventory quantity");
       const updatedItem = await response.json();
@@ -839,7 +840,7 @@ export const AppProvider = ({ children }) => {
       setInventory(prev => prev.map(item => item.id === id ? updatedItem : item));
       
       // Low stock notification trigger
-      if (updatedItem.quantity < updatedItem.minStock) {
+      if (Number(updatedItem.quantity) < Number(updatedItem.minStock)) {
         await addNotification(
           'System Inventory Alert',
           'Staff Roster',
@@ -851,19 +852,21 @@ export const AppProvider = ({ children }) => {
       console.error("Backend updateInventoryQuantity failed, using fallback:", e);
       setInventory(prev => prev.map(item => {
         if (item.id === id) {
-          const updatedItem = { ...item, quantity: Math.max(0, newQuantity) };
-          if (updatedItem.quantity < updatedItem.minStock) {
-            addNotification(
-              'System Inventory Alert',
-              'Staff Roster',
-              `Low Stock Warning: "${updatedItem.name}" has only ${updatedItem.quantity} ${updatedItem.unit} remaining (min threshold: ${updatedItem.minStock}). Please restock!`,
-              'SMS'
-            );
-          }
-          return updatedItem;
+          return { ...item, quantity: numericQuantity };
         }
         return item;
       }));
+
+      // Trigger low stock warning notification outside the setInventory state updater callback
+      const targetItem = inventory.find(item => item.id === id);
+      if (targetItem && numericQuantity < Number(targetItem.minStock)) {
+        addNotification(
+          'System Inventory Alert',
+          'Staff Roster',
+          `Low Stock Warning: "${targetItem.name}" has only ${numericQuantity} ${targetItem.unit} remaining (min threshold: ${targetItem.minStock}). Please restock!`,
+          'SMS'
+        );
+      }
     }
   };
 
