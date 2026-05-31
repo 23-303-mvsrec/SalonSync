@@ -1,0 +1,241 @@
+========================================================================
+SalonSync Luxury Booking & Omnichannel Platform — System Technical Manual
+========================================================================
+
+This document provides a detailed overview of the technical stack, database schemas, code workflows, and business logic engines powering SalonSync. You can share this document with ChatGPT, Gemini, or Claude as background context for asking questions, planning enhancements, or generating integrations.
+
+------------------------------------------------------------------------
+1. Project Overview & Features
+------------------------------------------------------------------------
+SalonSync is a real-time, multi-branch operations manager tailored for premium salon chains. Key functional features include:
+
+* Omnichannel Booking Inbox: Centralized dashboard managing message streams from simulated client channels: WhatsApp, Instagram DM, and Interactive Voice Response (IVR) phone calls.
+* NLP AI Scheduler: Integrates directly with Google Gemini 2.0 Flash via server-side REST API calls to process conversational booking requests, parse intent, verify stylist schedules, and confirm appointments.
+* Grid Calendar: A drag-and-drop stylist availability planner organized by time slot and staff assignments.
+* Point of Sale (POS) Billing Engine: Handles walk-ins and registered customers, applies manual/membership discounts, automatically credits/redeems loyalty points, computes 18% GST, and prints invoices.
+* Inventory Alert System: Live product inventory ledger that displays warnings and triggers notification toasts if quantity levels drop below minimum stock thresholds.
+* Customer & Staff Portals: Track lifetime visits, loyalty balances, stylist commission records, and a client-facing self-service booking site.
+
+------------------------------------------------------------------------
+2. Directory Layout & Key Modules
+------------------------------------------------------------------------
+
+SalonSync/
+├── index.html                  # Core HTML structure
+├── vite.config.ts              # Proxy configurations (/api routing to port 5000)
+├── package.json                # Frontend package dependencies & dev-scripts
+├── src/
+│   ├── index.js                # Frontend entrypoint
+│   ├── index.css               # Design system token definitions, themes, and utility classes
+│   ├── App.jsx                 # Core routing, global toaster, and layout scaffolding
+│   ├── context/
+│   │   └── AppContext.jsx      # Global state provider, REST actions, and 3s polling engine
+│   ├── data/
+│   │   └── mockData.js         # Fallback static datasets used if the server is offline
+│   ├── components/
+│   │   ├── Navbar.jsx          # Header displaying selected date and current branch
+│   │   ├── Sidebar.jsx         # Left navigation bar
+│   │   ├── BranchSelector.jsx  # Dropdown component to switch branches
+│   │   └── DateSelector.jsx    # Date handoff calendar widget
+│   └── pages/
+│       ├── Dashboard.jsx       # Analytics graphs, weekly channel trends, revenue curves
+│       ├── Appointments.jsx    # Calendar scheduling grid
+│       ├── POS.jsx             # Cart controls, loyalty ledger, tax calculations
+│       ├── Customers.jsx       # Customer database profile records
+│       ├── Staff.jsx           # Commissions tracker and stylist commission rates
+│       ├── Inventory.jsx       # Material stock lists, warning flags, quantity adjusters
+│       ├── Memberships.jsx     # Subscription plan assignments (Flat discount rates)
+│       ├── Integrations.jsx    # Chat inbox, Twilio IVR keypad simulator, widget builder
+│       └── Portal.jsx          # Client-facing portal page
+└── server/
+    ├── salonsync.db            # SQLite relational database
+    ├── index.js                # Express Server, HTTP endpoint definitions, and webhook gateways
+    ├── db.js                   # SQL schema definition and mock seed data
+    ├── gemini-chatbot.js       # Direct REST call engine for Gemini 2.0 Flash AI
+    └── package.json            # Backend Node.js package dependencies
+
+------------------------------------------------------------------------
+3. Technology Stack & Core Dependencies
+------------------------------------------------------------------------
+
+Frontend:
+* React 19: Responsive interface rendering.
+* Vite 8: Frontend compiler and development server.
+* React Router Dom 7: Dynamic client-side route provider.
+* Recharts 3: Responsive chart components for executive analytics dashboard reporting.
+* Lucide-React: Set of custom modern SVG icons.
+
+Backend:
+* Express 4: Server engine hosting REST APIs.
+* SQLite3 / SQLite 5: Relational datastore.
+* Cors: Enables cross-origin requests from the client port (5173) to the server port (5000).
+
+Utilities & Tooling:
+* Concurrently 10: Boots the frontend Vite dev compiler and backend Express process together inside one terminal window via the "npm run dev:all" command.
+* Nodemon 3: Monitors backend file changes in "server/" and automatically restarts the process.
+
+------------------------------------------------------------------------
+4. Relational Database Schema (server/db.js)
+------------------------------------------------------------------------
+
+SalonSync relies on 9 relational tables:
+
+1. branches:
+   * id (INTEGER PRIMARY KEY)
+   * name (TEXT NOT NULL) — Branch label, e.g. "SalonSync - Banjara Hills"
+   * city (TEXT NOT NULL)
+
+2. services:
+   * id (INTEGER PRIMARY KEY)
+   * name (TEXT NOT NULL) — Service title, e.g. "Hair Color"
+   * price (REAL NOT NULL) — Base cost
+   * duration (INTEGER NOT NULL) — Session duration in minutes
+   * category (TEXT NOT NULL) — Category folder (Color, Nails, Hair, Skin, etc.)
+
+3. staff:
+   * id (INTEGER PRIMARY KEY)
+   * name (TEXT NOT NULL)
+   * role (TEXT NOT NULL) — e.g. "Senior Stylist"
+   * branchId (INTEGER NOT NULL) — References branches(id)
+   * commissionPct (INTEGER NOT NULL) — Stylist's split rate (e.g. 20%)
+   * phone (TEXT NOT NULL)
+
+4. customers:
+   * id (INTEGER PRIMARY KEY AUTOINCREMENT)
+   * name (TEXT NOT NULL)
+   * phone (TEXT NOT NULL UNIQUE)
+   * email (TEXT)
+   * loyaltyPoints (INTEGER DEFAULT 0) — Balance available for POS payment
+   * totalVisits (INTEGER DEFAULT 0) — Auto-increments upon completed billing checkout
+   * preferredBranch (INTEGER NOT NULL)
+   * membershipId (INTEGER) — References an active VIP subscription
+
+5. appointments:
+   * id (INTEGER PRIMARY KEY AUTOINCREMENT)
+   * customerId (INTEGER NOT NULL) — 0 for guest/walk-in clients
+   * customerName (TEXT NOT NULL)
+   * staffId (INTEGER NOT NULL) — Stylist assignment
+   * staffName (TEXT NOT NULL)
+   * serviceId (INTEGER NOT NULL)
+   * serviceName (TEXT NOT NULL)
+   * branchId (INTEGER NOT NULL)
+   * date (TEXT NOT NULL) — Date string formatted as YYYY-MM-DD
+   * time (TEXT NOT NULL) — Booking hour formatted as HH:MM
+   * status (TEXT NOT NULL) — pending | confirmed | inprogress | completed | billed
+   * source (TEXT NOT NULL) — walkin | website | whatsapp | instagram | voice | call
+   * amount (REAL NOT NULL) — Paid total recorded at POS checkout
+
+6. inventory:
+   * id (INTEGER PRIMARY KEY AUTOINCREMENT)
+   * name (TEXT NOT NULL)
+   * category (TEXT NOT NULL)
+   * branchId (INTEGER NOT NULL)
+   * quantity (INTEGER NOT NULL) — Current stock count
+   * minStock (INTEGER NOT NULL) — Threshold that triggers low-stock warning flag
+   * unit (TEXT NOT NULL) — e.g. "tubes", "bottles", "pieces"
+   * price (REAL NOT NULL) — Standard purchase unit cost
+
+7. wa_messages:
+   * id (TEXT PRIMARY KEY) — Unique message ID
+   * sender (TEXT NOT NULL) — client | system
+   * text (TEXT NOT NULL) — Message body
+   * time (TEXT NOT NULL) — Time string
+   * channel (TEXT NOT NULL) — whatsapp | instagram | voice
+   * status (TEXT NOT NULL) — Message state, e.g. pending | approved | dispatched
+   * clientName (TEXT)
+   * phone (TEXT)
+   * service (TEXT) — JSON-serialized service information
+   * stylist (TEXT) — JSON-serialized stylist information
+   * date (TEXT)
+   * timeSlot (TEXT)
+   * branchId (INTEGER)
+
+8. notifications:
+   * id (TEXT PRIMARY KEY)
+   * customerName (TEXT NOT NULL)
+   * phone (TEXT NOT NULL)
+   * message (TEXT NOT NULL)
+   * type (TEXT NOT NULL) — WhatsApp | SMS
+   * timestamp (TEXT NOT NULL)
+   * status (TEXT NOT NULL)
+   * unread (INTEGER DEFAULT 1) — Flag where 1 = unread, 0 = read
+
+9. settings:
+   * key (TEXT PRIMARY KEY)
+   * value (TEXT) — Holds API configurations and credentials
+
+------------------------------------------------------------------------
+5. System Logic & Workflows
+------------------------------------------------------------------------
+
+A. Database Initialization & Conflict Pruning
+Upon backend application startup (server/index.js):
+1. Connects to SQLite database salonsync.db and ensures tables are seeded.
+2. Startup Cleanup Procedure: Automatically fetches all active appointments and scans for double-booking conflicts (same date, same time, and same stylist). Any duplicate conflict is automatically deleted from the database at startup, logging a clean state.
+
+B. State Polling & Synchronization Engine
+* Located in AppContext.jsx (src/context/AppContext.jsx).
+* Sets up a global polling hook that runs fetchDatabaseState every 3 seconds.
+* Issues parallel REST queries to retrieve the latest backend state (appointments, inventory, customers, staff, logs, notifications, settings).
+* If the backend goes offline, it automatically catches network exceptions, retains client states, and falls back to memory data loaded from mockData.js, preserving UX availability.
+
+C. Conversational Booking Engine (Gemini 2.0 Flash REST Integration)
+Simulating a WhatsApp/Instagram chat triggers this flow:
+1. The backend forwards the client message to the getAIResponse engine in gemini-chatbot.js (server/gemini-chatbot.js).
+2. It builds a detailed system instruction block informing the model of today's date, the active branch services, registered stylists for the branch, and available timeslots.
+3. The conversation history is tracked per phone number inside a server-side map.
+4. Once the model confirms (1) Service, (2) Stylist preference, (3) Time slot, and (4) Client name, it appends a structured tag block at the end of the text:
+   <BOOKING>{"service_id":N, "service_name":"...", "staff_id":N, "time":"HH:MM", "client_name":"..."}</BOOKING>
+5. The backend server interceptor regex parses this tag, converts it into a booking payload, automatically inserts a new appointment record with status confirmed in appointments, and clears the chat session history.
+
+D. Interactive Voice Response (IVR) Simulator
+* Implemented in Integrations.jsx (src/pages/Integrations.jsx).
+* Simulates a Twilio Interactive Voice Response call.
+* Flow steps: Ringing -> Welcome message -> Press DTMF keypad (category selector) -> Choose Service -> Choose Stylist -> Choose Time.
+* Once completed, it uses a POST request hook to register the call as an appointment in the database, generating a simulated SMS alert.
+
+E. Point of Sale (POS) Checkout & Calculation Engine
+1. Discount Hierarchy: Applies manual percentage discounts first. It then inspects the client profile for subscription VIP passes (e.g. Hair VIP Pass, Nail Deluxe, Royal Grooming) and automatically applies the discount.
+2. Loyalty Points Redemption: Validates point balance. Point value is configured as 10 points = 1 rupee discount. Deducts redeemed points from the total.
+3. GST Calculation: Adds 18% GST (9% CGST + 9% SGST) to the taxable subtotal.
+4. Database Commit: Once checked out, the appointment status switches to billed. The customer's totalVisits increments by 1, and new loyalty points (10% of total paid amount) are calculated and credited to their record.
+
+F. Inventory Level warning Loop
+* Triggers when adjusting stock level quantity counters (+ and - buttons) in Inventory.jsx (src/pages/Inventory.jsx).
+* If quantity drops below the minStock threshold, it registers a system alert in the database, which flashes a warning banner in the stock grid and fires a real-time sliding warning toast in the client header.
+
+------------------------------------------------------------------------
+6. API Endpoints
+------------------------------------------------------------------------
+
+| Route | Method | Payload | Function |
+| :--- | :--- | :--- | :--- |
+| /api/branches | GET | None | Fetch all registered branch centers |
+| /api/services | GET | None | Fetch complete service price catalog |
+| /api/staff | GET | None | Retrieve all staff stylists |
+| /api/staff | POST | { name, role, branchId, commissionPct, phone } | Register a new stylist |
+| /api/customers | GET | None | Retrieve customer database |
+| /api/customers | POST | { name, phone, email, preferredBranch } | Add new customer (returns existing if phone matches) |
+| /api/customers/:id/membership | PUT | { membershipId } | Link a membership pass to customer |
+| /api/customers/:id/redeem | POST | { pointsToRedeem } | Deduct loyalty points from customer account |
+| /api/appointments | GET | None | Retrieve all appointments |
+| /api/appointments | POST | { customerId, customerName, staffId, ... } | Book a new appointment; triggers startup cleaner |
+| /api/appointments/:id/status | PUT | { status } | Update appointment status (confirm, complete, etc.) |
+| /api/appointments/:id | PUT | { status, amount, staffId, ... } | Update full details of an appointment |
+| /api/inventory | GET | None | Fetch complete stock inventory list |
+| /api/inventory | POST | { name, category, branchId, quantity, minStock, unit, price } | Add a new stock item |
+| /api/inventory/:id | PUT | { name, category, quantity, minStock, unit, price } | Update stock item details |
+| /api/inventory/:id/quantity | PUT | { quantity } | Update quantity level; triggers warning |
+| /api/wa-messages | GET | None | Fetch omnichannel simulated chat logs |
+| /api/wa-messages | POST | Message details | Post a simulated chat message |
+| /api/wa-messages/:id/status | PUT | { status } | Set message status (approved | dispatched) |
+| /api/notifications | GET | None | Fetch system notifications ledger |
+| /api/notifications/read | PUT | None | Mark all notifications as read |
+| /api/settings | GET | None | Fetch all application settings keys |
+| /api/settings | POST | { key: value, ... } | Insert or replace configuration settings |
+| /api/settings/test-discord | POST | { discord_webhook_url } | Dispatch test embed request to Discord |
+| /api/ai/status | GET | None | Verifies if the Gemini API Key is configured |
+| /api/ai/chat | POST | { phone, message, channel, branchId, clientName } | Process a simulation chat message via Gemini |
+| /api/ai/session/reset | POST | { phone, channel } | Clear Gemini chat session memory for a number |
+| /api/wipe-logs | POST | None | Flush wa_messages and webhook logs |
+========================================================================
